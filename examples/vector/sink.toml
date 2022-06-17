@@ -1,0 +1,7 @@
+[sinks.stdout_nomad]
+type = "console"
+inputs = ["transform_nomad_alloc*"]
+target = "stdout"
+
+[sinks.stdout_nomad.encoding]
+codec = "json"

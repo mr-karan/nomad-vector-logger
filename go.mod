@@ -1,11 +1,11 @@
-module github.com/mr-karan/nomad-alloc-logger
+module github.com/mr-karan/nomad-vector-logger
 
 go 1.18
 
 require (
 	github.com/hashicorp/nomad/api v0.0.0-20211103234928-04cab9dbecd3
 	github.com/knadh/koanf v1.4.1
-	github.com/mr-karan/nomad-events-sink v0.1.1-0.20220617051258-624503512560
+	github.com/mr-karan/nomad-events-sink v0.2.0
 	github.com/spf13/pflag v1.0.5
 	go.uber.org/zap v1.21.0
 )
