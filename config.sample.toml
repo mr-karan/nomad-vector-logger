@@ -1,0 +1,11 @@
+[app]
+log = "debug" # `debug` for verbose logs. `info` otherwise.
+data_dir = "./data/events" # Directory to store `index.json` file which is used to set index offset when listening for events.
+commit_index_interval = "5s" # Interval at which `index.json` gets stored in `data_dir`.
+nomad_data_dir = "/opt/nomad/data/alloc"
+remove_alloc_delay = "5s"
+vector_config_dir = "examples/vector/" # Path to the generated vector config file.
+extra_templates_dir = "static/"
+
+[stream]
+max_reconnect_attempts = 5 # Maximum reconnection attempts with Nomad Events API. After this limit is breached, program exits.

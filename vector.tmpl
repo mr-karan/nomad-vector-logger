@@ -1,0 +1,20 @@
+{{ range $value := . }}
+[sources.source_{{$value.Key}}]
+type = "file"
+include = [ "{{$value.LogDir}}" ]
+line_delimiter = "\n"
+read_from = "beginning"
+
+[transforms.transform_{{$value.Key}}]
+type = "remap"
+inputs = ["source_{{$value.Key}}"]
+source = '''
+# Store Nomad metadata.
+.nomad_namespace = "{{$value.Namespace}}"
+.nomad_node_name = "{{$value.Node}}"
+.nomad_job_name = "{{$value.Job}}"
+.nomad_group_name = "{{$value.Group}}"
+.nomad_task_name = "{{$value.Task}}"
+.nomad_alloc_id = "{{$value.ID}}"
+'''
+{{- end}}
