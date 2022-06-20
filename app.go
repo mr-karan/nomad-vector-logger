@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 
@@ -213,16 +214,24 @@ func (app *App) generateConfig() error {
 	app.RLock()
 	defer app.RUnlock()
 
+	// Sort the keys because when writing the CSV we want them in-order.
+	keys := make([]string, 0, len(app.allocs))
+	for k := range app.allocs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// Collect the metdata for writing each row in CSV in a slice.
 	data := make([][]string, 0)
-	// Add header.
+	// Add header for the CSV.
 	data = append(data, []string{"alloc_id", "namespace", "job", "group", "task", "node"})
 
 	// Iterate on allocs in the map.
-	for _, alloc := range app.allocs {
+	for _, alloc := range keys {
 		// Add metadata for each task in the alloc.
-		for task := range alloc.TaskResources {
+		for task := range app.allocs[alloc].TaskResources {
 			// Add task to the data.
-			data = append(data, []string{alloc.ID, alloc.Namespace, alloc.JobID, alloc.TaskGroup, task, alloc.NodeName})
+			data = append(data, []string{app.allocs[alloc].ID, app.allocs[alloc].Namespace, app.allocs[alloc].JobID, app.allocs[alloc].TaskGroup, task, app.allocs[alloc].NodeName})
 		}
 	}
 
@@ -235,11 +244,11 @@ func (app *App) generateConfig() error {
 
 	w := csv.NewWriter(file)
 	if err := w.WriteAll(data); err != nil {
-		return fmt.Errorf("error writing csv:", err)
+		return fmt.Errorf("error writing csv: %v", err)
 	}
 
 	if err := w.Error(); err != nil {
-		return fmt.Errorf("error writing csv:", err)
+		return fmt.Errorf("error writing csv: %v", err)
 	}
 
 	return nil

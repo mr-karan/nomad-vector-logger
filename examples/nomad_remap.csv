@@ -1,0 +1,2 @@
+alloc_id,namespace,job,group,task,node
+5014a7ca-87b1-f40a-cff1-c479f0c77f2f,default,nginx,nginx,proxy,pop-os

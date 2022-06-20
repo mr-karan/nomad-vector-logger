@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"embed"
 	"fmt"
 	"os"
 	"os/signal"
@@ -12,8 +11,6 @@ import (
 )
 
 var (
-	//go:embed vector.tmpl
-	vectorTmpl embed.FS
 	// Version of the build. This is injected at build-time.
 	buildString = "unknown"
 )
