@@ -2,16 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
-	"html/template"
-	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"sync"
 	"time"
-
-	"errors"
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/mr-karan/nomad-events-sink/pkg/stream"
@@ -20,10 +16,8 @@ import (
 
 type Opts struct {
 	maxReconnectAttempts int
-	nomadDataDir         string
 	removeAllocDelay     time.Duration
-	vectorConfigDir      string
-	extraTemplatesDir    string
+	csvPath              string
 }
 
 // App is the global container that holds
@@ -177,17 +171,6 @@ func (app *App) fetchExistingAllocs() error {
 			continue
 		}
 
-		prefix := fmt.Sprintf(app.opts.nomadDataDir, allocStub.ID)
-		_, err := os.Stat(prefix)
-		if errors.Is(err, os.ErrNotExist) {
-			// Skip the allocation if it has been GC'ed from host but still the API returned.
-			// Unlikely case to happen.
-			continue
-		} else if err != nil {
-			app.log.Errorw("error checking if alloc dir exists on host: %v", err)
-			continue
-		}
-
 		if alloc, _, err := app.stream.Client.Allocations().Info(allocStub.ID, &api.QueryOptions{Namespace: allocStub.Namespace}); err != nil {
 			app.log.Errorw("unable to fetch alloc info: %v", err)
 			continue
@@ -230,93 +213,33 @@ func (app *App) generateConfig() error {
 	app.RLock()
 	defer app.RUnlock()
 
-	// Create a config dir to store templates.
-	if err := os.MkdirAll(app.opts.vectorConfigDir, os.ModePerm); err != nil {
-		return fmt.Errorf("error creating dir %s: %v", app.opts.vectorConfigDir, err)
-	}
-
-	// Load the vector config template.
-	tpl, err := template.ParseFS(vectorTmpl, "vector.tmpl")
-	if err != nil {
-		return fmt.Errorf("unable to parse template: %v", err)
-	}
-
-	// Special case to handle where there are no allocs.
-	// If this is the case, the user supplie config which relies on sources/transforms
-	// as the input for the sink can fail as the generated `nomad.toml` will be empty.
-	// To avoid this, remove all files inside the existing config dir and exit the function.
-	if len(app.allocs) == 0 {
-		app.log.Info("no current alloc is running, cleaning up config dir", "vector_dir", app.opts.vectorConfigDir)
-		dir, err := ioutil.ReadDir(app.opts.vectorConfigDir)
-		if err != nil {
-			return fmt.Errorf("error reading vector config dir")
-		}
-		for _, d := range dir {
-			if err := os.RemoveAll(path.Join([]string{app.opts.vectorConfigDir, d.Name()}...)); err != nil {
-				return fmt.Errorf("error cleaning up config dir")
-			}
-		}
-		return nil
-	}
-
-	data := make([]AllocMeta, 0)
+	data := make([][]string, 0)
+	// Add header.
+	data = append(data, []string{"alloc_id", "namespace", "job", "group", "task", "node"})
 
 	// Iterate on allocs in the map.
 	for _, alloc := range app.allocs {
 		// Add metadata for each task in the alloc.
 		for task := range alloc.TaskResources {
 			// Add task to the data.
-			data = append(data, AllocMeta{
-				Key:       fmt.Sprintf("nomad_alloc_%s_%s", alloc.ID, task),
-				ID:        alloc.ID,
-				LogDir:    filepath.Join(fmt.Sprintf("%s/%s", app.opts.nomadDataDir, alloc.ID), "alloc/logs/"+task+"*"),
-				Namespace: alloc.Namespace,
-				Group:     alloc.TaskGroup,
-				Node:      alloc.NodeName,
-				Task:      task,
-				Job:       alloc.JobID,
-			})
+			data = append(data, []string{alloc.ID, alloc.Namespace, alloc.JobID, alloc.TaskGroup, task, alloc.NodeName})
 		}
 	}
 
 	app.log.Infow("generating config with total tasks", "count", len(data))
-	file, err := os.Create(filepath.Join(app.opts.vectorConfigDir, "nomad.toml"))
+	file, err := os.Create(filepath.Join(app.opts.csvPath))
 	if err != nil {
-		return fmt.Errorf("error creating vector config file: %v", err)
+		return fmt.Errorf("error creating csv file: %v", err)
 	}
 	defer file.Close()
 
-	if err := tpl.Execute(file, data); err != nil {
-		return fmt.Errorf("error executing template: %v", err)
+	w := csv.NewWriter(file)
+	if err := w.WriteAll(data); err != nil {
+		return fmt.Errorf("error writing csv:", err)
 	}
 
-	// Load all user provided templates.
-	if app.opts.extraTemplatesDir != "" {
-		// Loop over all files mentioned in the templates dir.
-		files, err := ioutil.ReadDir(app.opts.extraTemplatesDir)
-		if err != nil {
-			return fmt.Errorf("error opening extra template file: %v", err)
-		}
-
-		// For all files, template it out and store in vector config dir.
-		for _, file := range files {
-			// Load the vector config template.
-			t, err := template.ParseFiles(filepath.Join(app.opts.extraTemplatesDir, file.Name()))
-			if err != nil {
-				return fmt.Errorf("unable to parse template: %v", err)
-			}
-
-			// Create the underlying file.
-			f, err := os.Create(filepath.Join(app.opts.vectorConfigDir, file.Name()))
-			if err != nil {
-				return fmt.Errorf("error creating extra template file: %v", err)
-			}
-			defer f.Close()
-
-			if err := t.Execute(f, data); err != nil {
-				return fmt.Errorf("error executing extra template: %v", err)
-			}
-		}
+	if err := w.Error(); err != nil {
+		return fmt.Errorf("error writing csv:", err)
 	}
 
 	return nil

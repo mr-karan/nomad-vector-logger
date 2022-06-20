@@ -1,7 +1,7 @@
 
 [sources.source_nomad_alloc_2cbf80ff-ef2a-e634-33ec-e097a6061001_proxy]
 type = "file"
-include = [ "/opt/nomad/data/alloc/2cbf80ff-ef2a-e634-33ec-e097a6061001/alloc/logs/proxy*" ]
+include = [ "/opt/nomad/data/alloc/2cbf80ff-ef2a-e634-33ec-e097a6061001/alloc/logs/*" ]
 line_delimiter = "\n"
 read_from = "beginning"
 

@@ -93,9 +93,7 @@ func initStream(ctx context.Context, ko *koanf.Koanf, cb stream.CallbackFunc) (*
 func initOpts(ko *koanf.Koanf) Opts {
 	return Opts{
 		maxReconnectAttempts: ko.Int("stream.max_reconnect_attempts"),
-		nomadDataDir:         ko.MustString("app.nomad_data_dir"),
 		removeAllocDelay:     ko.MustDuration("app.remove_alloc_delay"),
-		vectorConfigDir:      ko.MustString("app.vector_config_dir"),
-		extraTemplatesDir:    ko.String("app.extra_templates_dir"),
+		csvPath:              ko.MustString("app.vector_remap_csv"),
 	}
 }
