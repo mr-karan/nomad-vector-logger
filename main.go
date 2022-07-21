@@ -29,13 +29,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	log, err := initLogger(ko)
-	if err != nil {
-		fmt.Println("error initialising logger", err)
-		os.Exit(1)
-	}
-
 	var (
+		log  = initLogger(ko)
 		opts = initOpts(ko)
 	)
 
@@ -49,19 +44,20 @@ func main() {
 	// Initialise nomad events stream.
 	strm, err := initStream(ctx, ko, app.handleEvent)
 	if err != nil {
-		app.log.Fatalw("error initialising stream", "err", err)
+		app.log.Fatal("error initialising stream", "err", err)
 	}
 	app.stream = strm
 
 	// Set the node id in app.
 	nodeID, err := app.stream.NodeID()
 	if err != nil {
-		app.log.Fatalw("error fetching node id", "err", err)
+		app.log.Fatal("error fetching node id", "err", err)
 	}
 	app.nodeID = nodeID
+	app.log.Info("setting node id in the app", "node", app.nodeID)
 
 	// Start an instance of app.
-	app.log.Infow("booting nomad alloc logger",
+	app.log.Info("booting nomad alloc logger",
 		"version", buildString,
 	)
 	app.Start(ctx)

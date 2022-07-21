@@ -15,7 +15,7 @@ import (
 
 	"github.com/hashicorp/nomad/api"
 	"github.com/mr-karan/nomad-events-sink/pkg/stream"
-	"go.uber.org/zap"
+	"github.com/zerodha/logf"
 )
 
 type Opts struct {
@@ -31,7 +31,7 @@ type Opts struct {
 type App struct {
 	sync.RWMutex
 
-	log    *zap.SugaredLogger
+	log    logf.Logger
 	stream *stream.Stream
 	opts   Opts
 
@@ -60,17 +60,17 @@ func (app *App) Start(ctx context.Context) {
 
 	// Before we start listening to the event stream, fetch all current allocs in the cluster
 	// running on this node.
-	app.log.Debugw("fetching existing allocs")
+	app.log.Debug("fetching existing allocs")
 	if err := app.fetchExistingAllocs(); err != nil {
-		app.log.Fatalw("error fetching allocations", "error", err)
+		app.log.Fatal("error fetching allocations", "error", err)
 	}
 
-	app.log.Infow("added allocations to the map", "count", len(app.allocs))
+	app.log.Info("added allocations to the map", "count", len(app.allocs))
 
 	// Initialise index store from disk to continue reading
 	// from last event which is processed.
 	if err := app.stream.InitIndex(ctx); err != nil {
-		app.log.Fatalw("error initialising index store", "error", err)
+		app.log.Fatal("error initialising index store", "error", err)
 	}
 
 	wg.Add(1)
@@ -79,7 +79,7 @@ func (app *App) Start(ctx context.Context) {
 
 		// Subscribe to "Allocation" topic.
 		if err := app.stream.Subscribe(ctx, string(api.TopicAllocation), app.opts.maxReconnectAttempts); err != nil {
-			app.log.Errorw("error subscribing to events", "topic", string(api.TopicAllocation), "error", err)
+			app.log.Error("error subscribing to events", "topic", string(api.TopicAllocation), "error", err)
 		}
 	}()
 
@@ -91,7 +91,7 @@ func (app *App) Start(ctx context.Context) {
 func (app *App) AddAlloc(a *api.Allocation) {
 	app.Lock()
 	defer app.Unlock()
-	app.log.Infow("adding alloc to map", "id", a.ID)
+	app.log.Info("adding alloc to map", "id", a.ID)
 	app.allocs[a.ID] = a
 }
 
@@ -99,7 +99,7 @@ func (app *App) AddAlloc(a *api.Allocation) {
 func (app *App) RemoveAlloc(a *api.Allocation) {
 	app.Lock()
 	defer app.Unlock()
-	app.log.Infow("removing alloc to map", "id", a.ID)
+	app.log.Info("removing alloc to map", "id", a.ID)
 	delete(app.allocs, a.ID)
 }
 
@@ -109,15 +109,15 @@ func (app *App) handleEvent(e api.Event, meta stream.Meta) {
 	if e.Topic == api.TopicAllocation {
 		alloc, err := e.Allocation()
 		if err != nil {
-			app.log.Errorw("error fetching allocation", "error", err)
+			app.log.Error("error fetching allocation", "error", err)
 			return
 		}
 		if alloc.NodeID != meta.NodeID {
-			app.log.Debugw("ignoring the alloc because it's for a different node", "node", meta.NodeID, "event_alloc_node", alloc.NodeID)
+			app.log.Debug("ignoring the alloc because it's for a different node", "node", alloc.NodeID, "alloc_node", meta.NodeID)
 			return
 		}
 
-		app.log.Debugw("received allocation event",
+		app.log.Debug("received allocation event",
 			"type", e.Type,
 			"id", alloc.ID,
 			"name", alloc.Name,
@@ -130,33 +130,33 @@ func (app *App) handleEvent(e api.Event, meta stream.Meta) {
 		switch alloc.ClientStatus {
 		case "pending", "running":
 			// Add to the queue.
-			app.log.Infow("adding alloc", "id", alloc.ID)
+			app.log.Info("adding alloc", "id", alloc.ID)
 			app.AddAlloc(alloc)
 
 			// Generate config.
-			app.log.Infow("generating config after adding alloc", "index", e.Index)
+			app.log.Info("generating config after adding alloc", "index", e.Index)
 			err = app.generateConfig()
 			if err != nil {
-				app.log.Errorw("error generating config", "error", err)
+				app.log.Error("error generating config", "error", err)
 				return
 			}
 		case "complete", "failed":
-			app.log.Infow("scheduled removing of alloc", "id", alloc.ID, "duration", app.opts.removeAllocDelay)
+			app.log.Info("scheduled removing of alloc", "id", alloc.ID, "duration", app.opts.removeAllocDelay)
 			// Remove from the queue, but with a delay so that all the logs are collected by that time.
 			time.AfterFunc(app.opts.removeAllocDelay, func() {
-				app.log.Infow("removing alloc", "id", alloc.ID)
+				app.log.Info("removing alloc", "id", alloc.ID)
 				app.RemoveAlloc(alloc)
 
 				// Generate config.
-				app.log.Infow("generating config after alloc removal", "id", alloc.ID)
+				app.log.Info("generating config after alloc removal", "id", alloc.ID)
 				err = app.generateConfig()
 				if err != nil {
-					app.log.Errorw("error generating config", "error", err)
+					app.log.Error("error generating config", "error", err)
 					return
 				}
 			})
 		default:
-			app.log.Warnw("unable to handle event with this status",
+			app.log.Warn("unable to handle event with this status",
 				"status", alloc.ClientStatus,
 				"desc", alloc.ClientDescription,
 				"id", alloc.ID)
@@ -174,45 +174,49 @@ func (app *App) fetchExistingAllocs() error {
 		return err
 	}
 
-	app.log.Debugw("fetched existing allocs", "count", len(currentAllocs))
+	app.log.Debug("fetched existing allocs", "count", len(currentAllocs))
 
 	for _, allocStub := range currentAllocs {
 		// Skip the allocations which aren't running on this node.
 		if allocStub.NodeID != app.nodeID {
-			app.log.Debugw("skipping alloc because it doesn't run on this node", "name", allocStub.Name, "id", allocStub.ID)
+			app.log.Debug("skipping alloc because it doesn't run on this node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 			continue
+		} else {
+			app.log.Debug("alloc belongs to the current node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		}
 
 		prefix := fmt.Sprintf(app.opts.nomadDataDir, allocStub.ID)
+		app.log.Debug("checking if alloc log dir exists", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		_, err := os.Stat(prefix)
 		if errors.Is(err, os.ErrNotExist) {
+			app.log.Debug("log dir doesn't exist", "dir", prefix, "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 			// Skip the allocation if it has been GC'ed from host but still the API returned.
 			// Unlikely case to happen.
 			continue
 		} else if err != nil {
-			app.log.Errorw("error checking if alloc dir exists on host: %v", err)
+			app.log.Error("error checking if alloc dir exists on host", "error", err)
 			continue
 		}
 
 		if alloc, _, err := app.stream.Client.Allocations().Info(allocStub.ID, &api.QueryOptions{Namespace: allocStub.Namespace}); err != nil {
-			app.log.Errorw("unable to fetch alloc info: %v", err)
+			app.log.Error("unable to fetch alloc info", "error", err)
 			continue
 		} else {
-			app.log.Debugw("adding alloc to queue", "name", alloc.Name, "id", alloc.ID)
+			app.log.Debug("adding alloc to queue", "name", alloc.Name, "id", alloc.ID)
 			app.AddAlloc(alloc)
 			switch allocStub.ClientStatus {
 			case "complete", "failed":
-				app.log.Infow("scheduled removing of alloc", "id", alloc.ID, "duration", app.opts.removeAllocDelay)
+				app.log.Info("scheduled removing of alloc", "id", alloc.ID, "duration", app.opts.removeAllocDelay)
 				// Remove from the queue, but with a delay so that all the logs are collected by that time.
 				time.AfterFunc(app.opts.removeAllocDelay, func() {
-					app.log.Infow("removing alloc", "id", alloc.ID)
+					app.log.Info("removing alloc", "id", alloc.ID)
 					app.RemoveAlloc(alloc)
 
 					// Generate config.
-					app.log.Infow("generating config after alloc removal", "id", alloc.ID)
+					app.log.Info("generating config after alloc removal", "id", alloc.ID)
 					err = app.generateConfig()
 					if err != nil {
-						app.log.Errorw("error generating config", "error", err)
+						app.log.Error("error generating config", "error", err)
 					}
 				})
 			}
@@ -222,7 +226,7 @@ func (app *App) fetchExistingAllocs() error {
 	// Generate a config once all allocs are added to the map.
 	err = app.generateConfig()
 	if err != nil {
-		app.log.Errorw("error generating config", "error", err)
+		app.log.Error("error generating config", "error", err)
 		return err
 	}
 	return nil
@@ -286,7 +290,7 @@ func (app *App) generateConfig() error {
 		}
 	}
 
-	app.log.Infow("generating config with total tasks", "count", len(data))
+	app.log.Info("generating config with total tasks", "count", len(data))
 	file, err := os.Create(filepath.Join(app.opts.vectorConfigDir, "nomad.toml"))
 	if err != nil {
 		return fmt.Errorf("error creating vector config file: %v", err)
