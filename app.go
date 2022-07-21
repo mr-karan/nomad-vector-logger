@@ -174,6 +174,7 @@ func (app *App) fetchExistingAllocs() error {
 	for _, allocStub := range currentAllocs {
 		// Skip the allocations which aren't running on this node.
 		if allocStub.NodeID != app.nodeID {
+			app.log.Debugw("skipping alloc because it doesn't run on this node", "name", allocStub.Name, "id", allocStub.ID)
 			continue
 		}
 
@@ -192,6 +193,7 @@ func (app *App) fetchExistingAllocs() error {
 			app.log.Errorw("unable to fetch alloc info: %v", err)
 			continue
 		} else {
+			app.log.Debugw("adding alloc to queue", "name", alloc.Name, "id", alloc.ID)
 			app.AddAlloc(alloc)
 			switch allocStub.ClientStatus {
 			case "complete", "failed":
