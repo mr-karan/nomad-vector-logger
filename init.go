@@ -12,26 +12,19 @@ import (
 	"github.com/knadh/koanf/providers/file"
 	"github.com/mr-karan/nomad-events-sink/pkg/stream"
 	flag "github.com/spf13/pflag"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/zerodha/logf"
 )
 
-// initLogger initializes logger.
-func initLogger(ko *koanf.Koanf) (*zap.SugaredLogger, error) {
-	config := zap.NewDevelopmentConfig()
-	config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	logger, err := config.Build()
-	if err != nil {
-		return nil, fmt.Errorf("error initialising logger: %v", err)
+// initLogger initializes logger instance.
+func initLogger(ko *koanf.Koanf) logf.Logger {
+	opts := logf.Opts{EnableCaller: true}
+	if ko.String("app.log_level") == "debug" {
+		opts.Level = logf.DebugLevel
 	}
-
-	lvl := zapcore.InfoLevel
-	if ko.Bool("app.verbose") {
-		lvl = zapcore.DebugLevel
+	if ko.String("app.env") == "dev" {
+		opts.EnableColor = true
 	}
-
-	logger = logger.WithOptions(zap.IncreaseLevel(lvl), zap.AddStacktrace(zapcore.FatalLevel))
-	return logger.Sugar(), nil
+	return logf.New(opts)
 }
 
 // initConfig loads config to `ko` object.

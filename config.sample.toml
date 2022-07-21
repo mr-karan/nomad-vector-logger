@@ -1,5 +1,6 @@
 [app]
-log = "debug" # `debug` for verbose logs. `info` otherwise.
+log_level = "debug" # `debug` for verbose logs. `info` otherwise.
+env = "dev" # dev|prod.
 data_dir = "./data/events" # Directory to store `index.json` file which is used to set index offset when listening for events.
 commit_index_interval = "5s" # Interval at which `index.json` gets stored in `data_dir`.
 nomad_data_dir = "/opt/nomad/data/alloc" # Nomad data directory where allocs are stored.

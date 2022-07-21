@@ -7,7 +7,7 @@ require (
 	github.com/knadh/koanf v1.4.1
 	github.com/mr-karan/nomad-events-sink v0.2.0
 	github.com/spf13/pflag v1.0.5
-	go.uber.org/zap v1.21.0
+	github.com/zerodha/logf v0.5.5
 )
 
 require (
@@ -21,7 +21,5 @@ require (
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/reflectwalk v1.0.2 // indirect
 	github.com/pelletier/go-toml v1.7.0 // indirect
-	go.uber.org/atomic v1.7.0 // indirect
-	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/sys v0.0.0-20210510120138-977fb7262007 // indirect
 )
