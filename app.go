@@ -60,9 +60,12 @@ func (app *App) Start(ctx context.Context) {
 
 	// Before we start listening to the event stream, fetch all current allocs in the cluster
 	// running on this node.
+	app.log.Debugw("fetching existing allocs")
 	if err := app.fetchExistingAllocs(); err != nil {
-		app.log.Fatalw("error initialising index store", "error", err)
+		app.log.Fatalw("error fetching allocations", "error", err)
 	}
+
+	app.log.Infow("added allocations to the map", "count", len(app.allocs))
 
 	// Initialise index store from disk to continue reading
 	// from last event which is processed.
@@ -170,6 +173,8 @@ func (app *App) fetchExistingAllocs() error {
 	if err != nil {
 		return err
 	}
+
+	app.log.Debugw("fetched existing allocs", "count", len(currentAllocs))
 
 	for _, allocStub := range currentAllocs {
 		// Skip the allocations which aren't running on this node.
