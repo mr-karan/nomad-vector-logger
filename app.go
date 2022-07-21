@@ -113,7 +113,7 @@ func (app *App) handleEvent(e api.Event, meta stream.Meta) {
 			return
 		}
 		if alloc.NodeID != meta.NodeID {
-			app.log.Debug("ignoring the alloc because it's for a different node", "node", meta.NodeID, "event_alloc_node", alloc.NodeID)
+			app.log.Debug("ignoring the alloc because it's for a different node", "node", alloc.NodeID, "alloc_node", meta.NodeID)
 			return
 		}
 
@@ -179,7 +179,7 @@ func (app *App) fetchExistingAllocs() error {
 	for _, allocStub := range currentAllocs {
 		// Skip the allocations which aren't running on this node.
 		if allocStub.NodeID != app.nodeID {
-			app.log.Debug("skipping alloc because it doesn't run on this node", "name", allocStub.Name, "id", allocStub.ID)
+			app.log.Debug("skipping alloc because it doesn't run on this node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 			continue
 		}
 

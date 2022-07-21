@@ -54,6 +54,7 @@ func main() {
 		app.log.Fatal("error fetching node id", "err", err)
 	}
 	app.nodeID = nodeID
+	app.log.Info("setting node id in the app", "node", app.nodeID)
 
 	// Start an instance of app.
 	app.log.Info("booting nomad alloc logger",
