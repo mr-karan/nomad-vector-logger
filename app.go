@@ -185,7 +185,7 @@ func (app *App) fetchExistingAllocs() error {
 			app.log.Debug("alloc belongs to the current node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		}
 
-		prefix := fmt.Sprintf(app.opts.nomadDataDir, allocStub.ID)
+		prefix := path.Join(app.opts.nomadDataDir, allocStub.ID)
 		app.log.Debug("checking if alloc log dir exists", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		_, err := os.Stat(prefix)
 		if errors.Is(err, os.ErrNotExist) {
