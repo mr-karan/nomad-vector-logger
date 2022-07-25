@@ -181,21 +181,25 @@ func (app *App) fetchExistingAllocs() error {
 		if allocStub.NodeID != app.nodeID {
 			app.log.Debug("skipping alloc because it doesn't run on this node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 			continue
+		} else {
+			app.log.Debug("alloc belongs to the current node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		}
 
 		prefix := fmt.Sprintf(app.opts.nomadDataDir, allocStub.ID)
+		app.log.Debug("checking if alloc log dir exists", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		_, err := os.Stat(prefix)
 		if errors.Is(err, os.ErrNotExist) {
+			app.log.Debug("log dir doesn't exist", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 			// Skip the allocation if it has been GC'ed from host but still the API returned.
 			// Unlikely case to happen.
 			continue
 		} else if err != nil {
-			app.log.Error("error checking if alloc dir exists on host: %v", err)
+			app.log.Error("error checking if alloc dir exists on host", "error", err)
 			continue
 		}
 
 		if alloc, _, err := app.stream.Client.Allocations().Info(allocStub.ID, &api.QueryOptions{Namespace: allocStub.Namespace}); err != nil {
-			app.log.Error("unable to fetch alloc info: %v", err)
+			app.log.Error("unable to fetch alloc info", "error", err)
 			continue
 		} else {
 			app.log.Debug("adding alloc to queue", "name", alloc.Name, "id", alloc.ID)
