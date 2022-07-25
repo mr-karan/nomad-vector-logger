@@ -189,7 +189,7 @@ func (app *App) fetchExistingAllocs() error {
 		app.log.Debug("checking if alloc log dir exists", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		_, err := os.Stat(prefix)
 		if errors.Is(err, os.ErrNotExist) {
-			app.log.Debug("log dir doesn't exist", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
+			app.log.Debug("log dir doesn't exist", "dir", prefix, "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 			// Skip the allocation if it has been GC'ed from host but still the API returned.
 			// Unlikely case to happen.
 			continue
