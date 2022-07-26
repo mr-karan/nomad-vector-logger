@@ -7,8 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/hashicorp/nomad/api"
 )
 
 var (
@@ -36,24 +34,23 @@ func main() {
 
 	// Initialise a new instance of app.
 	app := App{
-		log:    log,
-		opts:   opts,
-		allocs: make(map[string]*api.Allocation, 0),
+		log:  log,
+		opts: opts,
 	}
 
 	// Initialise nomad events stream.
-	strm, err := initStream(ctx, ko, app.handleEvent)
+	client, err := initNomadClient()
 	if err != nil {
-		app.log.Fatal("error initialising stream", "err", err)
+		app.log.Fatal("error initialising client", "err", err)
 	}
-	app.stream = strm
+	app.nomadClient = client
 
 	// Set the node id in app.
-	nodeID, err := app.stream.NodeID()
+	self, err := app.nomadClient.Agent().Self()
 	if err != nil {
-		app.log.Fatal("error fetching node id", "err", err)
+		app.log.Fatal("error fetching self endpoint", "err", err)
 	}
-	app.nodeID = nodeID
+	app.nodeID = self.Stats["client"]["node_id"]
 	app.log.Info("setting node id in the app", "node", app.nodeID)
 
 	// Start an instance of app.

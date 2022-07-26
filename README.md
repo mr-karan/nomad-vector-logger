@@ -14,7 +14,7 @@ However for `raw_exec` and `exec` this still seems to be an issue until [10219](
 
 ### The Solution
 
-- Nomad provides an [Events stream](https://github.com/mr-karan/nomad-events-sink) which continuosly streams events from the Nomad cluster.`nomad-vector-logger` is a Go daemon which subscribes to the Events stream on topic `Allocation` and listens for allocation updates.
+- `nomad-vector-logger` is a Go daemon which periodically polls for all running `Allocation` on the node.
 - It then **templates** out a `vector` configuration to collect app logs from the allocation's log directory and enriches the configuration with metadata such as `NodeID`, `Namesapce`, `Task Name`, `JobName`, `AllocID` etc.
 - `vector` is started with a [`--watch-config`](https://vector.dev/docs/administration/management/#reloading) flag which automatically live-reloads `vector` whenever config changes. A config change can happen whenever an allocation is _created/stopped/restarted_.
 
