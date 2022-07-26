@@ -1,16 +1,15 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/hashicorp/nomad/api"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
-	"github.com/mr-karan/nomad-events-sink/pkg/stream"
 	flag "github.com/spf13/pflag"
 	"github.com/zerodha/logf"
 )
@@ -70,25 +69,20 @@ func initConfig(cfgDefault string, envPrefix string) (*koanf.Koanf, error) {
 	return ko, nil
 }
 
-func initStream(ctx context.Context, ko *koanf.Koanf, cb stream.CallbackFunc) (*stream.Stream, error) {
-	s, err := stream.New(
-		ko.String("app.data_dir"),
-		ko.Duration("app.commit_index_interval"),
-		cb,
-		true,
-	)
+// initNomadClient initialises a Nomad API client.
+func initNomadClient() (*api.Client, error) {
+	client, err := api.NewClient(api.DefaultConfig())
 	if err != nil {
-		return nil, fmt.Errorf("error initialising stream")
+		return nil, err
 	}
-	return s, nil
+	return client, nil
 }
 
 func initOpts(ko *koanf.Koanf) Opts {
 	return Opts{
-		maxReconnectAttempts: ko.Int("stream.max_reconnect_attempts"),
-		nomadDataDir:         ko.MustString("app.nomad_data_dir"),
-		removeAllocDelay:     ko.MustDuration("app.remove_alloc_delay"),
-		vectorConfigDir:      ko.MustString("app.vector_config_dir"),
-		extraTemplatesDir:    ko.String("app.extra_templates_dir"),
+		refreshInterval:   ko.MustDuration("app.refresh_interval"),
+		nomadDataDir:      ko.MustString("app.nomad_data_dir"),
+		vectorConfigDir:   ko.MustString("app.vector_config_dir"),
+		extraTemplatesDir: ko.String("app.extra_templates_dir"),
 	}
 }
