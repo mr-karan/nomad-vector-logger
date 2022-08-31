@@ -35,7 +35,7 @@ job "vector" {
     }
 
     # Sidecar job to template out CSVs.
-    task "events_csv_generator" {
+    task "nomad_vector_logger" {
       driver = "docker"
 
       lifecycle {
