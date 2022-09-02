@@ -72,7 +72,7 @@ View a sample deployment file at [examples/deployment.nomad](./examples/deployme
 
 ### Docker 
 
-`ghcr.io/mr-karan/nomad-vector-logger`
+Docker images are available on [GitHub](https://github.com/mr-karan/nomad-vector-logger/pkgs/container/nomad-vector-logger).
 
 ## Configuration
 
