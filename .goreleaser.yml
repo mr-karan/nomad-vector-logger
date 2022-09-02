@@ -39,7 +39,7 @@ dockers:
       - "ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}"
       - "ghcr.io/mr-karan/nomad-vector-logger:latest"
     
-    skip_push: true
+    skip_push: false
     dockerfile: Dockerfile
     use: docker
     # Template of the docker build flags.

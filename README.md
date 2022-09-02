@@ -52,7 +52,7 @@ This is an example JSON log collected from `nginx` task running with `raw_exec` 
 
 - This is meant to run inside a Nomad cluster and should have proper ACL to listen to `Allocation:*` events.
 - This is meant to be run as a `system` job. Each allocation of this program is responsible to configure `vector` for the allocations running on the host.
-- Vector should be deployed externally, as a system job as well and should have access to the same directory that this program uses to generate the files.
+- Vector should be deployed as a system job as well and should have access to the same directory that this program uses to generate the files.
 
 You can choose one of the various deployment options:
 
@@ -68,11 +68,11 @@ $ ./nomad-vector-logger.bin --config config.toml
 
 ### Nomad
 
-TODO
+View a sample deployment file at [examples/deployment.nomad](./examples/deployment.nomad).
 
 ### Docker 
 
-TODO
+`ghcr.io/mr-karan/nomad-vector-logger`
 
 ## Configuration
 
@@ -83,22 +83,6 @@ Refer to [config.sample.toml](./config.sample.toml) for a list of configurable v
 All config variables can also be populated as env vairables by prefixing `NOMAD_VECTOR_LOGGER_` and replacing `.` with `__`.
 
 For eg: `app.data_dir` becomes `NOMAD_VECTOR_LOGGER_app__data_dir`.
-
-Nomad API client reads the following environment variables:
-
-- `NOMAD_TOKEN`
-- `NOMAD_ADDR`
-- `NOMAD_REGION`
-- `NOMAD_NAMESPACE`
-- `NOMAD_HTTP_AUTH`
-- `NOMAD_CACERT`
-- `NOMAD_CAPATH`
-- `NOMAD_CLIENT_CERT`
-- `NOMAD_CLIENT_KEY`
-- `NOMAD_TLS_SERVER_NAME`
-- `NOMAD_SKIP_VERIFY`
-
-You can read about them in detail [here](https://www.nomadproject.io/docs/runtime/environment).
 
 ## Contribution
 
