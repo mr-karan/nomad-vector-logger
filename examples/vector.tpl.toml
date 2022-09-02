@@ -1,0 +1,57 @@
+# Directory for Vector data storage:
+data_dir = "/var/lib/vector" # Make sure the user which runs vector has R/W access to this directory.
+
+# Vector's API for introspection
+[api]
+enabled = true
+address = "127.0.0.1:8686"
+
+[enrichment_tables.nomad_alloc_data]
+type = "file"
+file.path = "[[ env "NOMAD_ALLOC_DIR" ]]/nomad_remap.csv" # Directory to store `index.json` file which is used to set index offset when listening for events.
+file.encoding.type = "csv"
+schema.alloc_id = "string"
+schema.namespace = "string"
+schema.job = "string"
+schema.group = "string"
+schema.task = "string"
+schema.node = "string"
+
+[sources.nomad_alloc_logs]
+type = "file"
+include = [ "/opt/nomad/data/alloc/*/alloc/logs/*.[0-9]*" ]
+line_delimiter = "\n"
+read_from = "beginning"
+
+[sources.nomad_alloc_logs.fingerprint]
+strategy= "device_and_inode"
+
+[transforms.enrich_nomad_logs]
+type = "remap"
+inputs = ["nomad_alloc_logs"]
+source = '''
+# Get the alloc ID by splitting the filepath.
+alloc_dir = split!(.file,"/opt/nomad/data/alloc/")
+alloc_file = alloc_dir[1]
+alloc_path = split!(alloc_file,"/alloc/logs/")
+alloc_id = alloc_path[0]
+task_path = alloc_path[1]
+task_name = split!(task_path,".")[0]
+
+row = get_enrichment_table_record!("nomad_alloc_data", { "alloc_id":  alloc_id, "task": task_name })
+
+# Lookup row based on alloc ID.
+.nomad_namespace = row.namespace
+.nomad_node_name = row.node
+.nomad_job_name = row.job
+.nomad_group_name = row.group
+.nomad_task_name = row.task
+.nomad_alloc_id = row.alloc_id
+'''
+
+[sinks.file_out]
+type = "file"
+inputs = [ "enrich_nomad_logs" ]
+compression = "none"
+path = "/tmp/vector-%Y-%m-%d.log"
+encoding.codec = "json"

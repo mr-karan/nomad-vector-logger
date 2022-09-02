@@ -1,10 +1,9 @@
 [app]
-log_level = "debug" # `debug` for verbose logs. `info` otherwise.
-env = "dev" # dev|prod.
-data_dir = "./data/events" # Directory to store `index.json` file which is used to set index offset when listening for events.
+log = "debug" # `debug` for verbose logs. `info` otherwise.
+data_dir = "{{ env "NOMAD_ALLOC_DIR" }}/data" # Directory to store `index.json` file which is used to set index offset when listening for events.
 commit_index_interval = "5s" # Interval at which `index.json` gets stored in `data_dir`.
 remove_alloc_delay = "5s" # If the alloc is completed or stopped, the allocation isn't removed immediately from vector's config. You can delay the removal of alloc by `n` duration to ensure that vector has finished collecting all logs till then.
-vector_remap_csv = "examples/nomad_remap.csv" # Path to the generated vector config file.
+vector_remap_csv = "{{ env "NOMAD_ALLOC_DIR" }}/nomad_remap.csv" # Path to the generated vector config file.
 
 [stream]
 max_reconnect_attempts = 5 # Maximum reconnection attempts with Nomad Events API. After this limit is breached, program exits.
