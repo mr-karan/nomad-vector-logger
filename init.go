@@ -72,11 +72,16 @@ func initConfig(cfgDefault string, envPrefix string) (*koanf.Koanf, error) {
 }
 
 func initStream(ctx context.Context, ko *koanf.Koanf, cb stream.CallbackFunc) (*stream.Stream, error) {
+	verbose := false
+	if ko.String("app.log_level") == "debug" {
+		verbose = true
+	}
+
 	s, err := stream.New(
 		ko.String("app.data_dir"),
 		ko.Duration("app.commit_index_interval"),
 		cb,
-		true,
+		verbose,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error initialising stream")

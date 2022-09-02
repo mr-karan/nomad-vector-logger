@@ -44,7 +44,8 @@ job "vector" {
       }
 
       config {
-        image   = "ghcr.io/mr-karan/nomad-vector-logger:v0.3.0"
+        # This image should be built with goreleaser for local development.
+        image   = "mr-karan/nomad-vector-logger:local"
         command = "/app/nomad-vector-logger.bin"
         args    = ["--config", "$${NOMAD_TASK_DIR}/config.toml"]
       }
@@ -62,7 +63,7 @@ job "vector" {
 
       # Template with Vector's configuration
       template {
-        data        = file(abspath("./config.tpl.toml"))
+        data        = file(abspath("./examples/config.tpl.toml"))
         destination = "$${NOMAD_TASK_DIR}/config.toml"
         change_mode = "restart"
       }
@@ -90,7 +91,7 @@ job "vector" {
 
       # Template with Vector's configuration
       template {
-        data          = file(abspath("./vector.tpl.toml"))
+        data          = file(abspath("./examples/vector.tpl.toml"))
         destination   = "$${NOMAD_TASK_DIR}/vector.toml"
         change_mode   = "signal"
         change_signal = "SIGHUP"
@@ -136,11 +137,16 @@ while true; do
   m2=$(md5sum "$filename")
 
   if [ "$m1" != "$m2" ] ; then
-    echo "$m1"
-    echo "$m2"
-    echo "INFO: File has changed!"
+    echo $(date -u) "INFO: old hash is $m1"
+    echo $(date -u) "INFO: new hash is $m2"
+    echo $(date -u) "INFO: File has changed!"
     killall -s SIGHUP vector || true
-    echo "INFO: Reloaded vector"
+    echo $(date -u) "INFO: Reloaded vector"
+
+    # Update the hash for next reconcilation.
+    echo $(date -u) "INFO: Updating old hash as $m2 from $m1"
+    m1=$m2
+
   fi
 done
   EOH
