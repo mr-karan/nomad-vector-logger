@@ -1,0 +1,68 @@
+[sources.source_nomad_alloc_a0717c55-b2a2-8c90-1a39-b875a95d5a1a_server]
+type = "file"
+include = [ "/opt/nomad/data/alloc/a0717c55-b2a2-8c90-1a39-b875a95d5a1a/alloc/logs/server*" ]
+line_delimiter = "\n"
+read_from = "beginning"
+[transforms.transform_nomad_alloc_a0717c55-b2a2-8c90-1a39-b875a95d5a1a_server]
+type = "remap"
+inputs = ["source_nomad_alloc_a0717c55-b2a2-8c90-1a39-b875a95d5a1a_server"]
+source = '''
+# Store Nomad metadata.
+.nomad.namespace = "default"
+.nomad.node_name = "pop-os"
+.nomad.job_name = "http"
+.nomad.group_name = "app"
+.nomad.task_name = "server"
+.nomad.alloc_id = "a0717c55-b2a2-8c90-1a39-b875a95d5a1a"
+'''
+[sources.source_nomad_alloc_8056b311-d9d9-28b3-1a60-1a7e71420e46_server]
+type = "file"
+include = [ "/opt/nomad/data/alloc/8056b311-d9d9-28b3-1a60-1a7e71420e46/alloc/logs/server*" ]
+line_delimiter = "\n"
+read_from = "beginning"
+[transforms.transform_nomad_alloc_8056b311-d9d9-28b3-1a60-1a7e71420e46_server]
+type = "remap"
+inputs = ["source_nomad_alloc_8056b311-d9d9-28b3-1a60-1a7e71420e46_server"]
+source = '''
+# Store Nomad metadata.
+.nomad.namespace = "default"
+.nomad.node_name = "pop-os"
+.nomad.job_name = "http"
+.nomad.group_name = "app"
+.nomad.task_name = "server"
+.nomad.alloc_id = "8056b311-d9d9-28b3-1a60-1a7e71420e46"
+'''
+[sources.source_nomad_alloc_5fc6ee1a-fcfa-9a34-a70b-44f5ba627f35_server]
+type = "file"
+include = [ "/opt/nomad/data/alloc/5fc6ee1a-fcfa-9a34-a70b-44f5ba627f35/alloc/logs/server*" ]
+line_delimiter = "\n"
+read_from = "beginning"
+[transforms.transform_nomad_alloc_5fc6ee1a-fcfa-9a34-a70b-44f5ba627f35_server]
+type = "remap"
+inputs = ["source_nomad_alloc_5fc6ee1a-fcfa-9a34-a70b-44f5ba627f35_server"]
+source = '''
+# Store Nomad metadata.
+.nomad.namespace = "default"
+.nomad.node_name = "pop-os"
+.nomad.job_name = "http"
+.nomad.group_name = "app"
+.nomad.task_name = "server"
+.nomad.alloc_id = "5fc6ee1a-fcfa-9a34-a70b-44f5ba627f35"
+'''
+[sources.source_nomad_alloc_1b139a2a-ada0-0b7f-b0ef-7390ffc55e56_server]
+type = "file"
+include = [ "/opt/nomad/data/alloc/1b139a2a-ada0-0b7f-b0ef-7390ffc55e56/alloc/logs/server*" ]
+line_delimiter = "\n"
+read_from = "beginning"
+[transforms.transform_nomad_alloc_1b139a2a-ada0-0b7f-b0ef-7390ffc55e56_server]
+type = "remap"
+inputs = ["source_nomad_alloc_1b139a2a-ada0-0b7f-b0ef-7390ffc55e56_server"]
+source = '''
+# Store Nomad metadata.
+.nomad.namespace = "default"
+.nomad.node_name = "pop-os"
+.nomad.job_name = "http"
+.nomad.group_name = "app"
+.nomad.task_name = "server"
+.nomad.alloc_id = "1b139a2a-ada0-0b7f-b0ef-7390ffc55e56"
+'''

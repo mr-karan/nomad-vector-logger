@@ -80,9 +80,10 @@ func initNomadClient() (*api.Client, error) {
 
 func initOpts(ko *koanf.Koanf) Opts {
 	return Opts{
-		refreshInterval:   ko.MustDuration("app.refresh_interval"),
-		nomadDataDir:      ko.MustString("app.nomad_data_dir"),
-		vectorConfigDir:   ko.MustString("app.vector_config_dir"),
-		extraTemplatesDir: ko.String("app.extra_templates_dir"),
+		refreshInterval:     ko.MustDuration("app.refresh_interval"),
+		removeAllocInterval: ko.MustDuration("app.remove_alloc_interval"),
+		nomadDataDir:        ko.MustString("app.nomad_data_dir"),
+		vectorConfigDir:     ko.MustString("app.vector_config_dir"),
+		extraTemplatesDir:   ko.String("app.extra_templates_dir"),
 	}
 }
