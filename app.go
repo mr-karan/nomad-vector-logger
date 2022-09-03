@@ -18,19 +18,23 @@ import (
 )
 
 type Opts struct {
-	refreshInterval   time.Duration
-	nomadDataDir      string
-	vectorConfigDir   string
-	extraTemplatesDir string
+	refreshInterval     time.Duration
+	removeAllocInterval time.Duration
+	nomadDataDir        string
+	vectorConfigDir     string
+	extraTemplatesDir   string
 }
 
 // App is the global container that holds
 // objects of various routines that run on boot.
 type App struct {
-	nomadClient *api.Client
-	log         logf.Logger
-	opts        Opts
-	nodeID      string
+	sync.RWMutex
+	log           logf.Logger
+	opts          Opts
+	nomadClient   *api.Client
+	nodeID        string                     // Self NodeID where this program is running.
+	allocs        map[string]*api.Allocation // Map of Alloc ID and Allocation object running in the cluster.
+	expiredAllocs []string
 }
 
 type AllocMeta struct {
@@ -56,6 +60,13 @@ func (app *App) Start(ctx context.Context) {
 		app.UpdateAllocs(ctx, app.opts.refreshInterval)
 	}()
 
+	// Start a background worker for removing expired allocs.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		app.CleanupAllocs(ctx, app.opts.removeAllocInterval)
+	}()
+
 	// Wait for all routines to finish.
 	wg.Wait()
 }
@@ -72,29 +83,59 @@ func (app *App) UpdateAllocs(ctx context.Context, refreshInterval time.Duration)
 		select {
 		case <-ticker:
 			// Fetch the list of allocs running on this node.
-			allocs, err := app.fetchAllocs()
+			runningAllocs, err := app.fetchRunningAllocs()
 			if err != nil {
 				app.log.Error("error fetching allocs", "error", err)
 				continue
 			}
 
+			// Compare the running allocs with the one that's already present in the map.
+			app.RLock()
+
+			// If this is the first run of the program, `app.allocs` will be empty.
+			if len(app.allocs) > 0 {
+				for _, a := range runningAllocs {
+					// If an alloc is present in the running list but missing in our map, that means we should add it to our map.
+					if _, ok := app.allocs[a.ID]; !ok {
+						app.log.Info("adding new alloc to map", "id", a.ID, "namespace", a.Namespace, "job", a.Job.Name, "group", a.TaskGroup)
+						app.allocs[a.ID] = a
+					}
+				}
+			} else {
+				// This ideally only happens once when the program boots up.
+				app.allocs = runningAllocs
+			}
+
+			// Now check if the allocs inside our map are missing any running allocs.
+			for _, r := range app.allocs {
+				// This means that the alloc id we have in our map isn't running anymore, so enqueue it for deletion.
+				if _, ok := runningAllocs[r.ID]; !ok {
+					app.log.Info("alloc not found as running, enqueuing for deletion", "id", r.ID, "namespace", r.Namespace, "job", r.Job.Name, "group", r.TaskGroup)
+					app.expiredAllocs = append(app.expiredAllocs, r.ID)
+				}
+			}
+
+			// Making a copy of map so we don't have to hold the lock for longer.
+			presentAllocs := app.allocs
+			app.RUnlock()
+
 			// Generate a config once all allocs are added to the map.
-			err = app.generateConfig(allocs)
+			err = app.generateConfig(presentAllocs)
 			if err != nil {
 				app.log.Error("error generating config", "error", err)
 				continue
 			}
 
 		case <-ctx.Done():
-			app.log.Warn("context cancellation received, quitting update services worker")
+			app.log.Warn("context cancellation received, quitting update worker")
 			return
 		}
 	}
 }
 
-// fetchAllocs fetches all the current allocations in the cluster.
+// fetchRunningAllocs fetches all the current allocations in the cluster.
 // It ignores the alloc which aren't running on the current node.
-func (app *App) fetchAllocs() (map[string]*api.Allocation, error) {
+func (app *App) fetchRunningAllocs() (map[string]*api.Allocation, error) {
 
 	allocs := make(map[string]*api.Allocation, 0)
 
@@ -166,7 +207,7 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	}
 
 	// Load the vector config template.
-	tpl, err := template.ParseFS(vectorTmpl, "vector.tmpl")
+	tpl, err := template.ParseFS(vectorTmpl, "vector.toml.tmpl")
 	if err != nil {
 		return fmt.Errorf("unable to parse template: %v", err)
 	}
@@ -250,4 +291,29 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	}
 
 	return nil
+}
+
+// CleanupAllocs removes the alloc from the map which are marked for deletion.
+// These could be old allocs that aren't running anymore but which need to be removed from
+// the config after a delay to ensure Vector has finished pushing all logs to upstream sink.
+func (app *App) CleanupAllocs(ctx context.Context, removeAllocInterval time.Duration) {
+	var (
+		ticker = time.NewTicker(removeAllocInterval).C
+	)
+
+	for {
+		select {
+		case <-ticker:
+			app.Lock()
+			for _, id := range app.expiredAllocs {
+				app.log.Info("cleaning up alloc", "id", id)
+				delete(app.allocs, id)
+			}
+			app.Unlock()
+
+		case <-ctx.Done():
+			app.log.Warn("context cancellation received, quitting cleanup worker")
+			return
+		}
+	}
 }

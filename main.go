@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	//go:embed vector.tmpl
+	//go:embed vector.toml.tmpl
 	vectorTmpl embed.FS
 	// Version of the build. This is injected at build-time.
 	buildString = "unknown"
@@ -27,15 +27,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	var (
-		log  = initLogger(ko)
-		opts = initOpts(ko)
-	)
-
 	// Initialise a new instance of app.
 	app := App{
-		log:  log,
-		opts: opts,
+		log:  initLogger(ko),
+		opts: initOpts(ko),
 	}
 
 	// Initialise nomad events stream.
@@ -54,8 +49,6 @@ func main() {
 	app.log.Info("setting node id in the app", "node", app.nodeID)
 
 	// Start an instance of app.
-	app.log.Info("booting nomad alloc logger",
-		"version", buildString,
-	)
+	app.log.Info("booting nomad-vector-logger", "version", buildString)
 	app.Start(ctx)
 }

@@ -1,10 +1,9 @@
-{{ range $value := . }}
+{{- range $value := . -}}
 [sources.source_{{$value.Key}}]
 type = "file"
 include = [ "{{$value.LogDir}}" ]
 line_delimiter = "\n"
 read_from = "beginning"
-
 [transforms.transform_{{$value.Key}}]
 type = "remap"
 inputs = ["source_{{$value.Key}}"]
@@ -17,4 +16,4 @@ source = '''
 .nomad.task_name = "{{$value.Task}}"
 .nomad.alloc_id = "{{$value.ID}}"
 '''
-{{- end}}
+{{ end}}
