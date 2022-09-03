@@ -69,11 +69,11 @@ $ ./nomad-vector-logger.bin --config config.toml
 
 ### Nomad
 
-TODO
+View a sample deployment file at [examples/deployment.nomad](./examples/deployment.nomad).
 
 ### Docker 
 
-TODO
+Docker images are available on [GitHub](https://github.com/mr-karan/nomad-vector-logger/pkgs/container/nomad-vector-logger).
 
 ## Configuration
 
@@ -84,22 +84,6 @@ Refer to [config.sample.toml](./config.sample.toml) for a list of configurable v
 All config variables can also be populated as env vairables by prefixing `NOMAD_VECTOR_LOGGER_` and replacing `.` with `__`.
 
 For eg: `app.data_dir` becomes `NOMAD_VECTOR_LOGGER_app__data_dir`.
-
-Nomad API client reads the following environment variables:
-
-- `NOMAD_TOKEN`
-- `NOMAD_ADDR`
-- `NOMAD_REGION`
-- `NOMAD_NAMESPACE`
-- `NOMAD_HTTP_AUTH`
-- `NOMAD_CACERT`
-- `NOMAD_CAPATH`
-- `NOMAD_CLIENT_CERT`
-- `NOMAD_CLIENT_KEY`
-- `NOMAD_TLS_SERVER_NAME`
-- `NOMAD_SKIP_VERIFY`
-
-You can read about them in detail [here](https://www.nomadproject.io/docs/runtime/environment).
 
 ## Contribution
 
