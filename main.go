@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/hashicorp/nomad/api"
 )
 
 var (
@@ -29,8 +31,11 @@ func main() {
 
 	// Initialise a new instance of app.
 	app := App{
-		log:  initLogger(ko),
-		opts: initOpts(ko),
+		log:           initLogger(ko),
+		opts:          initOpts(ko),
+		configUpdated: make(chan bool, 1000),
+		allocs:        make(map[string]*api.Allocation, 0),
+		expiredAllocs: make([]string, 0),
 	}
 
 	// Initialise nomad events stream.
