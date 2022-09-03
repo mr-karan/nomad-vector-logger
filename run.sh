@@ -1,11 +1,16 @@
 #!/bin/bash
 
+set -e
+
+echo "stop old deployments"
+nomad job stop -purge vector || true
+nomad system gc
+
 echo "build binary"
 make build
 
-echo "building local image"
-goreleaser --rm-dist --snapshot
-docker tag ghcr.io/mr-karan/nomad-vector-logger:latest mr-karan/nomad-vector-logger:local
+echo "copying bin to PATH"
+sudo cp ./bin/nomad-vector-logger.bin /usr/local/bin/
 
 echo "deploying on nomad"
-nomad run examples/deployment.nomad
+nomad run dev/deployment.nomad

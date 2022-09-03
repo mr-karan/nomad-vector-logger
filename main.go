@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"os"
 	"os/signal"
@@ -11,6 +12,8 @@ import (
 )
 
 var (
+	//go:embed vector.toml.tmpl
+	vectorTmpl embed.FS
 	// Version of the build. This is injected at build-time.
 	buildString = "unknown"
 )
@@ -28,28 +31,29 @@ func main() {
 
 	// Initialise a new instance of app.
 	app := App{
-		log:    initLogger(ko),
-		opts:   initOpts(ko),
-		allocs: make(map[string]*api.Allocation, 0),
+		log:           initLogger(ko),
+		opts:          initOpts(ko),
+		configUpdated: make(chan bool, 1000),
+		allocs:        make(map[string]*api.Allocation, 0),
+		expiredAllocs: make([]string, 0),
 	}
 
 	// Initialise nomad events stream.
-	strm, err := initStream(ctx, ko, app.handleEvent)
+	client, err := initNomadClient()
 	if err != nil {
-		app.log.Fatal("error initialising stream", "err", err)
+		app.log.Fatal("error initialising client", "err", err)
 	}
-	app.stream = strm
+	app.nomadClient = client
 
 	// Set the node id in app.
-	nodeID, err := app.stream.NodeID()
+	self, err := app.nomadClient.Agent().Self()
 	if err != nil {
-		app.log.Fatal("error fetching node id", "err", err)
+		app.log.Fatal("error fetching self endpoint", "err", err)
 	}
-	app.nodeID = nodeID
+	app.nodeID = self.Stats["client"]["node_id"]
+	app.log.Info("setting node id in the app", "node", app.nodeID)
 
 	// Start an instance of app.
-	app.log.Info("booting nomad alloc logger",
-		"version", buildString,
-	)
+	app.log.Info("booting nomad-vector-logger", "version", buildString)
 	app.Start(ctx)
 }

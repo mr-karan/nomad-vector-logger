@@ -19,3 +19,5 @@ config.toml
 bin/
 data/
 dist/
+.vscode/
+vector.toml

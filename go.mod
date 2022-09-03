@@ -3,9 +3,8 @@ module github.com/mr-karan/nomad-vector-logger
 go 1.19
 
 require (
-	github.com/hashicorp/nomad/api v0.0.0-20220901204706-4f9beb0b393c
+	github.com/hashicorp/nomad/api v0.0.0-20220902193006-d33f1eac719c
 	github.com/knadh/koanf v1.4.3
-	github.com/mr-karan/nomad-events-sink v0.2.0
 	github.com/spf13/pflag v1.0.5
 	github.com/zerodha/logf v0.5.5
 )

@@ -6,30 +6,28 @@ import (
 	"time"
 
 	"github.com/hashicorp/nomad/api"
-	"github.com/mr-karan/nomad-events-sink/pkg/stream"
 	"github.com/zerodha/logf"
 )
 
 type Opts struct {
-	maxReconnectAttempts int
-	removeAllocDelay     time.Duration
-	csvPath              string
+	refreshInterval     time.Duration
+	removeAllocInterval time.Duration
+	nomadDataDir        string
+	vectorConfigDir     string
+	extraTemplatesDir   string
 }
 
 // App is the global container that holds
 // objects of various routines that run on boot.
 type App struct {
 	sync.RWMutex
-
-	log    logf.Logger
-	stream *stream.Stream
-	opts   Opts
-
-	// Map of Alloc ID and Allocation object running in the cluster.
-	allocs map[string]*api.Allocation
-
-	// Self NodeID where this program is running.
-	nodeID string
+	log           logf.Logger
+	opts          Opts
+	nomadClient   *api.Client
+	nodeID        string                     // Self NodeID where this program is running.
+	allocs        map[string]*api.Allocation // Map of Alloc ID and Allocation object running in the cluster.
+	expiredAllocs []string
+	configUpdated chan bool
 }
 
 type AllocMeta struct {
@@ -48,89 +46,146 @@ type AllocMeta struct {
 func (app *App) Start(ctx context.Context) {
 	wg := &sync.WaitGroup{}
 
-	// Before we start listening to the event stream, fetch all current allocs in the cluster
-	// running on this node.
-	if err := app.fetchExistingAllocs(); err != nil {
-		app.log.Fatal("error initialising index store", "error", err)
-	}
-
-	// Initialise index store from disk to continue reading
-	// from last event which is processed.
-	if err := app.stream.InitIndex(ctx); err != nil {
-		app.log.Fatal("error initialising index store", "error", err)
-	}
-
+	// Start a background worker for fetching allocs and generating template.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		app.UpdateAllocs(ctx, app.opts.refreshInterval)
+	}()
 
-		// Subscribe to "Allocation" topic.
-		if err := app.stream.Subscribe(ctx, string(api.TopicAllocation), app.opts.maxReconnectAttempts); err != nil {
-			app.log.Error("error subscribing to events", "topic", string(api.TopicAllocation), "error", err)
-		}
+	// Start a background worker for removing expired allocs.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		app.CleanupAllocs(ctx, app.opts.removeAllocInterval)
+	}()
+
+	// Start a background worker for updating config.
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		app.ConfigUpdater(ctx)
 	}()
 
 	// Wait for all routines to finish.
 	wg.Wait()
 }
 
-// handleEvent is the callback function that is registered with stream. This function
-// is called whenever a new event comes in the stream.
-func (app *App) handleEvent(e api.Event, meta stream.Meta) {
-	if e.Topic == api.TopicAllocation {
-		alloc, err := e.Allocation()
-		if err != nil {
-			app.log.Error("error fetching allocation", "error", err)
+// UpdateAllocs fetches Nomad allocs from all the namespaces
+// at periodic interval and generates the templates.
+// This is a blocking function so the caller must invoke as a goroutine.
+func (app *App) UpdateAllocs(ctx context.Context, refreshInterval time.Duration) {
+	var (
+		ticker = time.NewTicker(refreshInterval).C
+	)
+
+	for {
+		select {
+		case <-ticker:
+			// Fetch the list of allocs running on this node.
+			runningAllocs, err := app.fetchRunningAllocs()
+			if err != nil {
+				app.log.Error("error fetching allocs", "error", err)
+				continue
+			}
+
+			// Copy the map of allocs so we don't have to hold the lock longer.
+			app.RLock()
+			presentAllocs := app.allocs
+			app.RUnlock()
+
+			updateCnt := 0
+			if len(presentAllocs) > 0 {
+				for _, a := range runningAllocs {
+					// If an alloc is present in the running list but missing in our map, that means we should add it to our map.
+					if _, ok := presentAllocs[a.ID]; !ok {
+						app.log.Info("adding new alloc to map", "id", a.ID, "namespace", a.Namespace, "job", a.Job.Name, "group", a.TaskGroup)
+						app.Lock()
+						app.allocs[a.ID] = a
+						app.Unlock()
+						updateCnt++
+					}
+				}
+			} else {
+				// If this is the first run of the program, `allocs` will be empty.
+				// This ideally only happens once when the program boots up.
+				app.Lock()
+				app.allocs = runningAllocs
+				app.Unlock()
+				app.configUpdated <- true
+				break
+			}
+
+			// Only generate config if there were additions.
+			if updateCnt > 0 {
+				app.configUpdated <- true
+			}
+
+			// Now check if present allocs include allocs which aren't running anymore.
+			for _, r := range presentAllocs {
+				// This means that the alloc id we have in our map isn't running anymore, so enqueue it for deletion.
+				if _, ok := runningAllocs[r.ID]; !ok {
+					app.log.Info("enqueing non running alloc for deletion", "id", r.ID, "namespace", r.Namespace, "job", r.Job.Name, "group", r.TaskGroup)
+					app.expiredAllocs = append(app.expiredAllocs, r.ID)
+				}
+			}
+
+		case <-ctx.Done():
+			app.log.Warn("context cancellation received, quitting update worker")
 			return
 		}
-		if alloc.NodeID != meta.NodeID {
-			app.log.Debug("ignoring the alloc because it's for a different node", "node", meta.NodeID, "event_alloc_node", alloc.NodeID)
+	}
+}
+
+// CleanupAllocs removes the alloc from the map which are marked for deletion.
+// These could be old allocs that aren't running anymore but which need to be removed from
+// the config after a delay to ensure Vector has finished pushing all logs to upstream sink.
+func (app *App) CleanupAllocs(ctx context.Context, removeAllocInterval time.Duration) {
+	var (
+		ticker = time.NewTicker(removeAllocInterval).C
+	)
+
+	for {
+		select {
+		case <-ticker:
+			deleteCnt := 0
+			app.Lock()
+			for _, id := range app.expiredAllocs {
+				app.log.Info("cleaning up alloc", "id", id)
+				delete(app.allocs, id)
+				deleteCnt++
+			}
+			// Reset the expired allocs to nil.
+			app.expiredAllocs = nil
+			app.Unlock()
+
+			// Only generate config if there were deletions.
+			if deleteCnt > 0 {
+				app.configUpdated <- true
+			}
+
+		case <-ctx.Done():
+			app.log.Warn("context cancellation received, quitting cleanup worker")
 			return
 		}
+	}
+}
 
-		app.log.Debug("received allocation event",
-			"type", e.Type,
-			"id", alloc.ID,
-			"name", alloc.Name,
-			"namespace", alloc.Namespace,
-			"group", alloc.TaskGroup,
-			"job", alloc.JobID,
-			"status", alloc.ClientStatus,
-		)
-
-		switch alloc.ClientStatus {
-		case "pending", "running":
-			// Add to the map.
-			app.log.Info("adding alloc", "id", alloc.ID)
-			app.AddAlloc(alloc)
-
-			// Generate config.
-			app.log.Info("generating config after adding alloc", "index", e.Index)
-			err = app.generateConfig()
+func (app *App) ConfigUpdater(ctx context.Context) {
+	for {
+		select {
+		case <-app.configUpdated:
+			app.RLock()
+			allocs := app.allocs
+			app.RUnlock()
+			err := app.generateConfig(allocs)
 			if err != nil {
 				app.log.Error("error generating config", "error", err)
-				return
 			}
-		case "complete", "failed":
-			app.log.Info("scheduled removing of alloc", "id", alloc.ID, "duration", app.opts.removeAllocDelay)
-			// Remove from the queue, but with a delay so that all the logs are collected by that time.
-			time.AfterFunc(app.opts.removeAllocDelay, func() {
-				app.log.Info("removing alloc", "id", alloc.ID)
-				app.RemoveAlloc(alloc)
 
-				// Generate config.
-				app.log.Info("generating config after alloc removal", "id", alloc.ID)
-				err = app.generateConfig()
-				if err != nil {
-					app.log.Error("error generating config", "error", err)
-					return
-				}
-			})
-		default:
-			app.log.Warn("unable to handle event with this status",
-				"status", alloc.ClientStatus,
-				"desc", alloc.ClientDescription,
-				"id", alloc.ID)
+		case <-ctx.Done():
+			app.log.Warn("context cancellation received, quitting config worker")
+			return
 		}
 	}
 }
