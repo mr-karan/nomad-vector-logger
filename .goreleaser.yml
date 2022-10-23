@@ -7,8 +7,10 @@ builds:
     id: nomad-vector-logger
     goos:
       - linux
+      - darwin
     goarch:
       - amd64
+      - arm64
     ldflags:
       - -s -w -X "main.buildString={{ .Tag }} ({{ .ShortCommit }} {{ .Date }})"
     dir: .
@@ -21,28 +23,10 @@ archives:
       - config.sample.toml
 
 dockers:
-  - # ID of the image, needed if you want to filter by it later on (e.g. on custom publishers).
-    id: nomad-vector-logger
-
-    # GOOS of the built binaries/packages that should be used.
-    goos: linux
-
-    # GOARCH of the built binaries/packages that should be used.
+  - image_templates: ["ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-amd64"]
     goarch: amd64
-
-    # IDs to filter the binaries/packages.
-    ids:
-      - nomad-vector-logger
-
-    # Templates of the Docker image names.
-    image_templates:
-      - "ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}"
-      - "ghcr.io/mr-karan/nomad-vector-logger:latest"
-    
-    skip_push: false
     dockerfile: Dockerfile
-    use: docker
-    # Template of the docker build flags.
+    use: buildx
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -50,6 +34,28 @@ dockers:
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
       - "--label=org.opencontainers.image.version={{.Version}}"
       - "--platform=linux/amd64"
-
     extra_files:
       - config.sample.toml
+  - image_templates: ["ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-arm64"]
+    goarch: arm64
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--platform=linux/arm64"
+    extra_files:
+      - config.sample.toml
+
+docker_manifests:
+  - name_template: ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}
+    image_templates:
+      - ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-amd64
+      - ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-arm64
+  - name_template: ghcr.io/mr-karan/nomad-vector-logger:latest
+    image_templates:
+      - ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-amd64
+      - ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-arm64
