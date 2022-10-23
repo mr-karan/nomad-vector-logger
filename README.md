@@ -104,7 +104,7 @@ $ ./nomad-vector-logger.bin --config config.toml
 
 ### Nomad
 
-View a sample deployment file at [examples/deployment.nomad](./examples/deployment.nomad).
+View a sample deployment file at [dev/deployment.nomad](./dev/deployment.nomad).
 
 ### Docker 
 
