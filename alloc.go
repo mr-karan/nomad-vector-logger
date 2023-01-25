@@ -123,6 +123,7 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 				Node:      alloc.NodeName,
 				Task:      task,
 				Job:       alloc.JobID,
+				Name:      alloc.Name,
 			})
 		}
 	}

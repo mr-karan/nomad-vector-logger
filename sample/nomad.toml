@@ -15,4 +15,5 @@ source = '''
 .nomad.group_name = "nginx"
 .nomad.task_name = "proxy"
 .nomad.alloc_id = "64a2f9fd-e003-0bb3-b5cd-838125283a06"
+.nomad.alloc_name = "doggo.app[0]"
 '''

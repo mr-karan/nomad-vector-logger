@@ -39,6 +39,7 @@ type AllocMeta struct {
 	Task      string
 	Node      string
 	Group     string
+	Name      string
 }
 
 // Start initialises the subscription stream in background and waits

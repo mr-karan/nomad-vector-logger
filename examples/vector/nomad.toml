@@ -1,0 +1,18 @@
+[sources.source_nomad_alloc_e45a64fa-23c5-51ad-f5c6-2149dfaa5ce7_web]
+type = "file"
+include = [ "/opt/nomad/data/alloc/e45a64fa-23c5-51ad-f5c6-2149dfaa5ce7/alloc/logs/web*" ]
+line_delimiter = "\n"
+read_from = "beginning"
+[transforms.transform_nomad_alloc_e45a64fa-23c5-51ad-f5c6-2149dfaa5ce7_web]
+type = "remap"
+inputs = ["source_nomad_alloc_e45a64fa-23c5-51ad-f5c6-2149dfaa5ce7_web"]
+source = '''
+# Store Nomad metadata.
+.nomad.namespace = "default"
+.nomad.node_name = "pop-os"
+.nomad.job_name = "doggo"
+.nomad.group_name = "app"
+.nomad.task_name = "web"
+.nomad.alloc_id = "e45a64fa-23c5-51ad-f5c6-2149dfaa5ce7"
+.nomad.alloc_name = "doggo.app[0]"
+'''
