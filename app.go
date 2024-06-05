@@ -39,6 +39,8 @@ type AllocMeta struct {
 	Task      string
 	Node      string
 	Group     string
+	JobType   string
+	ParentJob string
 }
 
 // Start initialises the subscription stream in background and waits

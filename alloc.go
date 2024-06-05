@@ -123,6 +123,8 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 				Node:      alloc.NodeName,
 				Task:      task,
 				Job:       alloc.JobID,
+				JobType:   getStringOrEmpty(alloc.Job.Type),
+				ParentJob: getStringOrEmpty(alloc.Job.ParentID),
 			})
 		}
 	}
@@ -168,4 +170,11 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	}
 
 	return nil
+}
+
+func getStringOrEmpty(str *string) string {
+	if str != nil {
+		return *str
+	}
+	return ""
 }
