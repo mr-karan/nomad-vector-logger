@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -95,7 +94,7 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	// To avoid this, remove all files inside the existing config dir and exit the function.
 	if len(allocs) == 0 {
 		app.log.Info("no current alloc is running, cleaning up config dir", "vector_dir", app.opts.vectorConfigDir)
-		dir, err := ioutil.ReadDir(app.opts.vectorConfigDir)
+		dir, err := os.ReadDir(app.opts.vectorConfigDir)
 		if err != nil {
 			return fmt.Errorf("error reading vector config dir")
 		}
@@ -141,7 +140,7 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	// Load all user provided templates.
 	if app.opts.extraTemplatesDir != "" {
 		// Loop over all files mentioned in the templates dir.
-		files, err := ioutil.ReadDir(app.opts.extraTemplatesDir)
+		files, err := os.ReadDir(app.opts.extraTemplatesDir)
 		if err != nil {
 			return fmt.Errorf("error opening extra template file: %v", err)
 		}
