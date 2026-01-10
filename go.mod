@@ -1,6 +1,6 @@
 module github.com/mr-karan/nomad-vector-logger
 
-go 1.19
+go 1.22
 
 require (
 	github.com/hashicorp/nomad/api v0.0.0-20220902193006-d33f1eac719c
