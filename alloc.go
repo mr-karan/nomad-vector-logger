@@ -1,9 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -12,47 +12,31 @@ import (
 	"github.com/hashicorp/nomad/api"
 )
 
-// fetchRunningAllocs fetches all the current allocations in the cluster.
-// It ignores the alloc which aren't running on the current node.
+// fetchRunningAllocs fetches all current running allocations on this node.
+// It filters out allocations that are not running or whose log directory doesn't exist.
 func (app *App) fetchRunningAllocs() (map[string]*api.Allocation, error) {
 	allocs := make(map[string]*api.Allocation, 0)
 
-	// Only fetch the allocations running on this noe.
-	params := map[string]string{}
-	params["filter"] = fmt.Sprintf("NodeID==\"%s\"", app.nodeID)
-
-	// Prepare params for listing alloc.
-	query := &api.QueryOptions{
-		Params:    params,
-		Namespace: "*",
-	}
-
-	// Query list of allocs.
-	currentAllocs, meta, err := app.nomadClient.Allocations().List(query)
+	// Query list of allocations for this node only
+	query := &api.QueryOptions{}
+	currentAllocs, meta, err := app.nomadClient.Nodes().Allocations(app.nodeID, query)
 	if err != nil {
 		return nil, err
 	}
 	app.log.Debug("fetched existing allocs", "count", len(currentAllocs), "took", meta.RequestTime)
 
 	// For each alloc, check if it's running and get the underlying alloc info.
-	for _, allocStub := range currentAllocs {
-		if allocStub.ClientStatus != "running" {
-			app.log.Debug("ignoring alloc since it's not running", "name", allocStub.Name, "status", allocStub.ClientStatus)
+	for _, alloc := range currentAllocs {
+		if alloc.ClientStatus != "running" {
+			app.log.Debug("ignoring alloc since it's not running", "name", alloc.Name, "status", alloc.ClientStatus)
 			continue
-		}
-		// Skip the allocations which aren't running on this node.
-		if allocStub.NodeID != app.nodeID {
-			app.log.Debug("skipping alloc because it doesn't run on this node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
-			continue
-		} else {
-			app.log.Debug("alloc belongs to the current node", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
 		}
 
-		prefix := path.Join(app.opts.nomadDataDir, allocStub.ID)
-		app.log.Debug("checking if alloc log dir exists", "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
+		prefix := path.Join(app.opts.nomadDataDir, alloc.ID)
+		app.log.Debug("checking if alloc log dir exists", "name", alloc.Name, "alloc_node", alloc.NodeID, "node", app.nodeID)
 		_, err := os.Stat(prefix)
 		if errors.Is(err, os.ErrNotExist) {
-			app.log.Debug("log dir doesn't exist", "dir", prefix, "name", allocStub.Name, "alloc_node", allocStub.NodeID, "node", app.nodeID)
+			app.log.Debug("log dir doesn't exist", "dir", prefix, "name", alloc.Name, "alloc_node", alloc.NodeID, "node", app.nodeID)
 			// Skip the allocation if it has been GC'ed from host but still the API returned.
 			// Unlikely case to happen.
 			continue
@@ -61,12 +45,7 @@ func (app *App) fetchRunningAllocs() (map[string]*api.Allocation, error) {
 			continue
 		}
 
-		if alloc, _, err := app.nomadClient.Allocations().Info(allocStub.ID, &api.QueryOptions{Namespace: allocStub.Namespace}); err != nil {
-			app.log.Error("unable to fetch alloc info", "error", err)
-			continue
-		} else {
-			allocs[alloc.ID] = alloc
-		}
+		allocs[alloc.ID] = alloc
 	}
 
 	// Return map of allocs.
@@ -95,7 +74,7 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	// To avoid this, remove all files inside the existing config dir and exit the function.
 	if len(allocs) == 0 {
 		app.log.Info("no current alloc is running, cleaning up config dir", "vector_dir", app.opts.vectorConfigDir)
-		dir, err := ioutil.ReadDir(app.opts.vectorConfigDir)
+		dir, err := os.ReadDir(app.opts.vectorConfigDir)
 		if err != nil {
 			return fmt.Errorf("error reading vector config dir")
 		}
@@ -111,8 +90,16 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 
 	// Iterate on allocs in the map.
 	for _, alloc := range allocs {
+		// Extract job-level metadata.
+		jobMeta := encodeMetaToJSON(getJobMeta(alloc.Job))
+		// Extract group-level metadata.
+		groupMeta := encodeMetaToJSON(getGroupMeta(alloc.Job, alloc.TaskGroup))
+
 		// Add metadata for each task in the alloc.
 		for task := range alloc.TaskResources {
+			// Extract task-level metadata.
+			taskMeta := encodeMetaToJSON(getTaskMeta(alloc.Job, alloc.TaskGroup, task))
+
 			// Add task to the data.
 			data = append(data, AllocMeta{
 				Key:       fmt.Sprintf("nomad_alloc_%s_%s", alloc.ID, task),
@@ -123,8 +110,11 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 				Node:      alloc.NodeName,
 				Task:      task,
 				Job:       alloc.JobID,
-				JobType:   getStringOrEmpty(alloc.Job.Type),
-				ParentJob: getStringOrEmpty(alloc.Job.ParentID),
+				JobType:   ptrToString(alloc.Job.Type),
+				ParentJob: ptrToString(alloc.Job.ParentID),
+				TaskMeta:  taskMeta,
+				GroupMeta: groupMeta,
+				JobMeta:   jobMeta,
 			})
 		}
 	}
@@ -143,7 +133,7 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	// Load all user provided templates.
 	if app.opts.extraTemplatesDir != "" {
 		// Loop over all files mentioned in the templates dir.
-		files, err := ioutil.ReadDir(app.opts.extraTemplatesDir)
+		files, err := os.ReadDir(app.opts.extraTemplatesDir)
 		if err != nil {
 			return fmt.Errorf("error opening extra template file: %v", err)
 		}
@@ -172,9 +162,61 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	return nil
 }
 
-func getStringOrEmpty(str *string) string {
+// ptrToString safely dereferences a string pointer, returning empty string if nil.
+func ptrToString(str *string) string {
 	if str != nil {
 		return *str
 	}
 	return ""
+}
+
+// getJobMeta returns the job-level metadata from a Job object.
+func getJobMeta(job *api.Job) map[string]string {
+	if job == nil {
+		return nil
+	}
+	return job.Meta
+}
+
+// getGroupMeta returns the group-level metadata for a specific task group.
+func getGroupMeta(job *api.Job, groupName string) map[string]string {
+	if job == nil || job.TaskGroups == nil {
+		return nil
+	}
+	for _, tg := range job.TaskGroups {
+		if tg.Name != nil && *tg.Name == groupName {
+			return tg.Meta
+		}
+	}
+	return nil
+}
+
+// getTaskMeta returns the task-level metadata for a specific task within a group.
+func getTaskMeta(job *api.Job, groupName, taskName string) map[string]string {
+	if job == nil || job.TaskGroups == nil {
+		return nil
+	}
+	for _, tg := range job.TaskGroups {
+		if tg.Name != nil && *tg.Name == groupName {
+			for _, task := range tg.Tasks {
+				if task.Name == taskName {
+					return task.Meta
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// encodeMetaToJSON converts a metadata map to a JSON string for use in templates.
+// Returns an empty object "{}" if the map is nil or empty.
+func encodeMetaToJSON(meta map[string]string) string {
+	if len(meta) == 0 {
+		return "{}"
+	}
+	b, err := json.Marshal(meta)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }

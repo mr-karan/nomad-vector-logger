@@ -39,8 +39,11 @@ type AllocMeta struct {
 	Task      string
 	Node      string
 	Group     string
-	JobType   string
-	ParentJob string
+	JobType   string // Type of job (service, batch, system)
+	ParentJob string // Parent job ID for batch jobs
+	TaskMeta  string // JSON encoded task-level metadata
+	GroupMeta string // JSON encoded group-level metadata
+	JobMeta   string // JSON encoded job-level metadata
 }
 
 // Start initialises the subscription stream in background and waits
