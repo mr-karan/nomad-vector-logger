@@ -1,3 +1,5 @@
+version: 2
+
 env:
   - GO111MODULE=on
   - CGO_ENABLED=0
@@ -16,17 +18,25 @@ builds:
     dir: .
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
     files:
       - README.md
       - LICENSE
       - config.sample.toml
 
 dockers:
-  - image_templates: ["ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-amd64"]
+  - id: docker-amd64
+    goos: linux
     goarch: amd64
+    ids:
+      - nomad-vector-logger
+    image_templates:
+      - "ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-amd64"
+      - "ghcr.io/mr-karan/nomad-vector-logger:latest-amd64"
+    skip_push: false
     dockerfile: Dockerfile
-    use: buildx
+    use: docker
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -36,10 +46,18 @@ dockers:
       - "--platform=linux/amd64"
     extra_files:
       - config.sample.toml
-  - image_templates: ["ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-arm64"]
+
+  - id: docker-arm64
+    goos: linux
     goarch: arm64
+    ids:
+      - nomad-vector-logger
+    image_templates:
+      - "ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-arm64"
+      - "ghcr.io/mr-karan/nomad-vector-logger:latest-arm64"
+    skip_push: false
     dockerfile: Dockerfile
-    use: buildx
+    use: docker
     build_flag_templates:
       - "--pull"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -57,5 +75,5 @@ docker_manifests:
       - ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-arm64
   - name_template: ghcr.io/mr-karan/nomad-vector-logger:latest
     image_templates:
-      - ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-amd64
-      - ghcr.io/mr-karan/nomad-vector-logger:{{ .Tag }}-arm64
+      - ghcr.io/mr-karan/nomad-vector-logger:latest-amd64
+      - ghcr.io/mr-karan/nomad-vector-logger:latest-arm64
