@@ -15,5 +15,8 @@ source = '''
 .nomad.group_name = "{{$value.Group}}"
 .nomad.task_name = "{{$value.Task}}"
 .nomad.alloc_id = "{{$value.ID}}"
+.nomad.task_meta = {{$value.TaskMeta}}
+.nomad.group_meta = {{$value.GroupMeta}}
+.nomad.job_meta = {{$value.JobMeta}}
 '''
 {{ end}}

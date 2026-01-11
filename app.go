@@ -39,6 +39,9 @@ type AllocMeta struct {
 	Task      string
 	Node      string
 	Group     string
+	TaskMeta  string // JSON encoded task-level metadata
+	GroupMeta string // JSON encoded group-level metadata
+	JobMeta   string // JSON encoded job-level metadata
 }
 
 // Start initialises the subscription stream in background and waits

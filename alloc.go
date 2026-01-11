@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,8 +12,8 @@ import (
 	"github.com/hashicorp/nomad/api"
 )
 
-// fetchRunningAllocs fetches all the current allocations in the cluster.
-// It ignores the alloc which aren't running on the current node.
+// fetchRunningAllocs fetches all current running allocations on this node.
+// It filters out allocations that are not running or whose log directory doesn't exist.
 func (app *App) fetchRunningAllocs() (map[string]*api.Allocation, error) {
 	allocs := make(map[string]*api.Allocation, 0)
 
@@ -89,8 +90,16 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 
 	// Iterate on allocs in the map.
 	for _, alloc := range allocs {
+		// Extract job-level metadata.
+		jobMeta := encodeMetaToJSON(getJobMeta(alloc.Job))
+		// Extract group-level metadata.
+		groupMeta := encodeMetaToJSON(getGroupMeta(alloc.Job, alloc.TaskGroup))
+
 		// Add metadata for each task in the alloc.
 		for task := range alloc.TaskResources {
+			// Extract task-level metadata.
+			taskMeta := encodeMetaToJSON(getTaskMeta(alloc.Job, alloc.TaskGroup, task))
+
 			// Add task to the data.
 			data = append(data, AllocMeta{
 				Key:       fmt.Sprintf("nomad_alloc_%s_%s", alloc.ID, task),
@@ -101,6 +110,9 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 				Node:      alloc.NodeName,
 				Task:      task,
 				Job:       alloc.JobID,
+				TaskMeta:  taskMeta,
+				GroupMeta: groupMeta,
+				JobMeta:   jobMeta,
 			})
 		}
 	}
@@ -146,4 +158,55 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 	}
 
 	return nil
+}
+
+// getJobMeta returns the job-level metadata from a Job object.
+func getJobMeta(job *api.Job) map[string]string {
+	if job == nil {
+		return nil
+	}
+	return job.Meta
+}
+
+// getGroupMeta returns the group-level metadata for a specific task group.
+func getGroupMeta(job *api.Job, groupName string) map[string]string {
+	if job == nil || job.TaskGroups == nil {
+		return nil
+	}
+	for _, tg := range job.TaskGroups {
+		if tg.Name != nil && *tg.Name == groupName {
+			return tg.Meta
+		}
+	}
+	return nil
+}
+
+// getTaskMeta returns the task-level metadata for a specific task within a group.
+func getTaskMeta(job *api.Job, groupName, taskName string) map[string]string {
+	if job == nil || job.TaskGroups == nil {
+		return nil
+	}
+	for _, tg := range job.TaskGroups {
+		if tg.Name != nil && *tg.Name == groupName {
+			for _, task := range tg.Tasks {
+				if task.Name == taskName {
+					return task.Meta
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// encodeMetaToJSON converts a metadata map to a JSON string for use in templates.
+// Returns an empty object "{}" if the map is nil or empty.
+func encodeMetaToJSON(meta map[string]string) string {
+	if len(meta) == 0 {
+		return "{}"
+	}
+	b, err := json.Marshal(meta)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }

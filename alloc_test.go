@@ -27,7 +27,10 @@ func TestGenerateConfig(t *testing.T) {
 		configUpdated: make(chan bool, 10),
 	}
 
-	// Create mock allocations
+	// Helper to create string pointers
+	strPtr := func(s string) *string { return &s }
+
+	// Create mock allocations with Job and Meta information
 	allocs := map[string]*api.Allocation{
 		"alloc-123": {
 			ID:        "alloc-123",
@@ -37,6 +40,22 @@ func TestGenerateConfig(t *testing.T) {
 			TaskGroup: "web",
 			TaskResources: map[string]*api.Resources{
 				"nginx": {},
+			},
+			Job: &api.Job{
+				ID:   strPtr("my-job"),
+				Meta: map[string]string{"env": "staging", "team": "platform"},
+				TaskGroups: []*api.TaskGroup{
+					{
+						Name: strPtr("web"),
+						Meta: map[string]string{"tier": "frontend"},
+						Tasks: []*api.Task{
+							{
+								Name: "nginx",
+								Meta: map[string]string{"port": "8080", "version": "1.21"},
+							},
+						},
+					},
+				},
 			},
 		},
 		"alloc-456": {
@@ -48,6 +67,26 @@ func TestGenerateConfig(t *testing.T) {
 			TaskResources: map[string]*api.Resources{
 				"app":     {},
 				"sidecar": {},
+			},
+			Job: &api.Job{
+				ID:   strPtr("api-service"),
+				Meta: map[string]string{"env": "production"},
+				TaskGroups: []*api.TaskGroup{
+					{
+						Name: strPtr("api"),
+						Meta: map[string]string{"tier": "backend"},
+						Tasks: []*api.Task{
+							{
+								Name: "app",
+								Meta: map[string]string{"metrics-port": "9090"},
+							},
+							{
+								Name: "sidecar",
+								Meta: map[string]string{"proxy": "envoy"},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -76,11 +115,21 @@ func TestGenerateConfig(t *testing.T) {
 		".nomad.job_name = \"my-job\"",
 		".nomad.task_name = \"nginx\"",
 		".nomad.alloc_id = \"alloc-123\"",
+		// First allocation meta fields
+		`"env":"staging"`,
+		`"team":"platform"`,
+		`"tier":"frontend"`,
+		`"port":"8080"`,
 		// Second allocation - both tasks
 		"[sources.source_nomad_alloc_alloc-456_app]",
 		"[sources.source_nomad_alloc_alloc-456_sidecar]",
 		".nomad.namespace = \"production\"",
 		".nomad.job_name = \"api-service\"",
+		// Second allocation meta fields
+		`"env":"production"`,
+		`"tier":"backend"`,
+		`"metrics-port":"9090"`,
+		`"proxy":"envoy"`,
 	}
 
 	for _, snippet := range expectedSnippets {
@@ -161,6 +210,8 @@ func TestGenerateConfigLogPath(t *testing.T) {
 		configUpdated: make(chan bool, 10),
 	}
 
+	strPtr := func(s string) *string { return &s }
+
 	allocs := map[string]*api.Allocation{
 		"abc-def-123": {
 			ID:        "abc-def-123",
@@ -170,6 +221,17 @@ func TestGenerateConfigLogPath(t *testing.T) {
 			TaskGroup: "group",
 			TaskResources: map[string]*api.Resources{
 				"task1": {},
+			},
+			Job: &api.Job{
+				ID: strPtr("job"),
+				TaskGroups: []*api.TaskGroup{
+					{
+						Name: strPtr("group"),
+						Tasks: []*api.Task{
+							{Name: "task1"},
+						},
+					},
+				},
 			},
 		},
 	}
