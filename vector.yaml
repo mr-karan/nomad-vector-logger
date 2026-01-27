@@ -1,0 +1,152 @@
+# Pure Vector config for Nomad log enrichment
+# No external daemon required - Vector polls Nomad API directly
+#
+# Required environment variables:
+#   NOMAD_NODE_ID    - Node UUID (auto-set when running as Nomad job)
+#   NOMAD_ADDR       - Nomad API address
+#   NOMAD_TOKEN      - ACL token with node:read, namespace:read-job (optional if ACLs disabled)
+#   VECTOR_DATA_DIR  - Persistent directory for checkpoints (default: /var/lib/vector)
+#
+# Key learnings applied:
+#   1. Memory enrichment table uses key-value model: { "alloc_id": { metadata } }
+#   2. Query with: get_enrichment_table_record("table", { "key": alloc_id })
+#   3. Use fingerprint.strategy: device_and_inode (checksum fails on small files)
+#   4. Persistent data_dir required for checkpoints across restarts
+#   5. Drop unenriched logs to handle startup race condition
+
+data_dir: "${VECTOR_DATA_DIR:-/var/lib/vector}"
+
+api:
+  enabled: true
+  address: "0.0.0.0:8686"
+
+enrichment_tables:
+  nomad_allocs:
+    type: memory
+    ttl: 120
+    flush_interval: 10
+    inputs: ["nomad_allocs_builder"]
+
+sources:
+  nomad_api:
+    type: http_client
+    endpoint: "${NOMAD_ADDR:-http://localhost:4646}/v1/node/${NOMAD_NODE_ID}/allocations"
+    scrape_interval_secs: 30
+    headers:
+      X-Nomad-Token:
+        - "${NOMAD_TOKEN:-}"
+    decoding:
+      codec: json
+
+  nomad_logs:
+    type: file
+    include:
+      - "${NOMAD_DATA_DIR:-/opt/nomad/data/alloc}/*/alloc/logs/*.stdout.*"
+      - "${NOMAD_DATA_DIR:-/opt/nomad/data/alloc}/*/alloc/logs/*.stderr.*"
+    exclude:
+      - "${NOMAD_DATA_DIR:-/opt/nomad/data/alloc}/*/alloc/logs/.*.fifo"
+    read_from: beginning
+    ignore_older_secs: 86400
+    glob_minimum_cooldown_ms: 1000
+    line_delimiter: "\n"
+    fingerprint:
+      strategy: device_and_inode
+
+transforms:
+  # Build enrichment table from Nomad API response
+  # Memory table stores: { "alloc_id": { job, namespace, group, node, job_type } }
+  nomad_allocs_builder:
+    type: remap
+    inputs: ["nomad_api"]
+    drop_on_abort: true
+    source: |
+      # http_client with JSON array decoding emits one event per array element
+      if .ClientStatus != "running" {
+        abort
+      }
+      
+      # Memory enrichment table key-value model:
+      # - Top-level field NAME becomes the lookup key
+      # - Top-level field VALUE becomes the stored value
+      alloc_id = to_string!(.ID)
+      metadata = {
+        "job": to_string(.JobID) ?? "",
+        "namespace": to_string(.Namespace) ?? "default",
+        "group": to_string(.TaskGroup) ?? "",
+        "node": to_string(.NodeName) ?? "",
+        "job_type": to_string(object(.Job) ?? {}.Type) ?? ""
+      }
+      . = set!(value: {}, path: [alloc_id], data: metadata)
+
+  # Enrich logs with Nomad metadata
+  nomad_log_enrich:
+    type: remap
+    inputs: ["nomad_logs"]
+    source: |
+      # Extract alloc_id and task from file path
+      # Path: /opt/nomad/data/alloc/<alloc_id>/alloc/logs/<task>.<stream>.<rotation>
+      path_match, err = parse_regex(.file, r'/(?P<alloc_id>[a-f0-9-]{36})/alloc/logs/(?P<task>[^.]+)\.')
+      if err != null {
+        path_match = {}
+      }
+      
+      alloc_id = string(path_match.alloc_id) ?? ""
+      task = string(path_match.task) ?? ""
+      
+      .nomad.alloc_id = alloc_id
+      .nomad.task_name = task
+      
+      # Memory table lookup returns: { "key": alloc_id, "value": metadata, "ttl": N }
+      record, err = get_enrichment_table_record("nomad_allocs", { "key": alloc_id })
+      
+      if err == null {
+        meta = object(record.value) ?? {}
+        .nomad.namespace = to_string(meta.namespace) ?? ""
+        .nomad.node_name = to_string(meta.node) ?? ""
+        .nomad.job_name = to_string(meta.job) ?? ""
+        .nomad.group_name = to_string(meta.group) ?? ""
+        .nomad.job_type = to_string(meta.job_type) ?? ""
+      }
+
+  # Optional: Format for specific sink (e.g., ClickHouse)
+  # Drops logs that couldn't be enriched (startup race condition)
+  nomad_logs_formatted:
+    type: remap
+    inputs: ["nomad_log_enrich"]
+    drop_on_abort: true
+    source: |
+      # Drop unenriched logs (before first API poll completed)
+      if !exists(.nomad.namespace) || .nomad.namespace == null || .nomad.namespace == "" {
+        abort
+      }
+      
+      . = {
+          "timestamp": to_unix_timestamp!(.timestamp, unit: "milliseconds"),
+          "hostname": .host,
+          "namespace": string(.nomad.namespace) ?? "",
+          "job_name": string(.nomad.job_name) ?? "",
+          "group_name": string(.nomad.group_name) ?? "",
+          "task_name": string(.nomad.task_name) ?? "",
+          "node_name": string(.nomad.node_name) ?? "",
+          "message": string(.message) ?? ""
+      }
+
+# Add your sinks here. Examples:
+#
+# Console (debugging):
+# sinks:
+#   console:
+#     type: console
+#     inputs: ["nomad_log_enrich"]  # or "nomad_logs_formatted"
+#     encoding:
+#       codec: json
+#
+# ClickHouse:
+# sinks:
+#   clickhouse:
+#     type: clickhouse
+#     inputs: ["nomad_logs_formatted"]
+#     endpoint: "http://clickhouse:8123"
+#     database: "logs"
+#     table: "nomad_apps"
+#     skip_unknown_fields: true
