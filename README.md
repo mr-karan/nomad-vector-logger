@@ -51,7 +51,7 @@ job "vector" {
       driver = "raw_exec"
       
       artifact {
-        source = "https://github.com/vectordotdev/vector/releases/download/v0.52.0/vector-0.52.0-x86_64-unknown-linux-gnu.tar.gz"
+        source = "https://github.com/vectordotdev/vector/releases/download/v0.56.0/vector-0.56.0-x86_64-unknown-linux-gnu.tar.gz"
       }
       
       config {
@@ -213,7 +213,7 @@ Logs may arrive before the first Nomad API poll completes (~30s). These logs can
 
 ## Requirements
 
-- **Vector 0.49+** (memory enrichment table support)
+- **Vector 0.56+**
 - **Nomad ACL policy** (if ACLs enabled):
 
 ```hcl
