@@ -4,6 +4,9 @@ type = "file"
 include = [ "{{$value.LogDir}}" ]
 line_delimiter = "\n"
 read_from = "beginning"
+{{- if gt $value.FileMaxLineBytes 0 }}
+max_line_bytes = {{$value.FileMaxLineBytes}}
+{{- end }}
 [transforms.transform_{{$value.Key}}]
 type = "remap"
 inputs = ["source_{{$value.Key}}"]

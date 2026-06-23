@@ -15,6 +15,7 @@ type Opts struct {
 	nomadDataDir        string
 	vectorConfigDir     string
 	extraTemplatesDir   string
+	fileMaxLineBytes    int
 }
 
 // App is the global container that holds
@@ -31,19 +32,20 @@ type App struct {
 }
 
 type AllocMeta struct {
-	Key       string
-	ID        string
-	LogDir    string
-	Job       string
-	Namespace string
-	Task      string
-	Node      string
-	Group     string
-	JobType   string // Type of job (service, batch, system)
-	ParentJob string // Parent job ID for batch jobs
-	TaskMeta  string // JSON encoded task-level metadata
-	GroupMeta string // JSON encoded group-level metadata
-	JobMeta   string // JSON encoded job-level metadata
+	Key              string
+	ID               string
+	LogDir           string
+	Job              string
+	Namespace        string
+	Task             string
+	Node             string
+	Group            string
+	JobType          string // Type of job (service, batch, system)
+	ParentJob        string // Parent job ID for batch jobs
+	TaskMeta         string // JSON encoded task-level metadata
+	GroupMeta        string // JSON encoded group-level metadata
+	JobMeta          string // JSON encoded job-level metadata
+	FileMaxLineBytes int
 }
 
 // Start initialises the subscription stream in background and waits

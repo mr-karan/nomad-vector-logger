@@ -156,6 +156,10 @@ func TestGenerateConfig(t *testing.T) {
 			t.Errorf("expected config to contain %q, but it didn't", transform)
 		}
 	}
+
+	if strings.Contains(config, "max_line_bytes") {
+		t.Errorf("expected default config to use Vector's max_line_bytes default, got:\n%s", config)
+	}
 }
 
 // TestGenerateConfigEmpty verifies that generateConfig handles empty allocations
@@ -256,5 +260,61 @@ func TestGenerateConfigLogPath(t *testing.T) {
 	expectedPath := "/opt/nomad/data/alloc/abc-def-123/alloc/logs/task1*"
 	if !strings.Contains(string(content), expectedPath) {
 		t.Errorf("expected log path %q in config, got:\n%s", expectedPath, content)
+	}
+}
+
+func TestGenerateConfigFileMaxLineBytes(t *testing.T) {
+	tempDir := t.TempDir()
+	vectorConfigDir := filepath.Join(tempDir, "vector")
+
+	app := &App{
+		log: logf.New(logf.Opts{}),
+		opts: Opts{
+			nomadDataDir:     "/opt/nomad/data/alloc",
+			vectorConfigDir:  vectorConfigDir,
+			fileMaxLineBytes: 262144,
+		},
+		configUpdated: make(chan bool, 10),
+	}
+
+	strPtr := func(s string) *string { return &s }
+
+	allocs := map[string]*api.Allocation{
+		"abc-def-123": {
+			ID:        "abc-def-123",
+			Namespace: "default",
+			NodeName:  "node-1",
+			JobID:     "job",
+			TaskGroup: "group",
+			TaskResources: map[string]*api.Resources{
+				"task1": {},
+			},
+			Job: &api.Job{
+				ID: strPtr("job"),
+				TaskGroups: []*api.TaskGroup{
+					{
+						Name: strPtr("group"),
+						Tasks: []*api.Task{
+							{Name: "task1"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	err := app.generateConfig(allocs)
+	if err != nil {
+		t.Fatalf("generateConfig failed: %v", err)
+	}
+
+	content, err := os.ReadFile(filepath.Join(vectorConfigDir, "nomad.toml"))
+	if err != nil {
+		t.Fatalf("failed to read config: %v", err)
+	}
+
+	expected := "max_line_bytes = 262144"
+	if !strings.Contains(string(content), expected) {
+		t.Errorf("expected %q in config, got:\n%s", expected, content)
 	}
 }

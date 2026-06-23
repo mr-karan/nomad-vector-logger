@@ -114,6 +114,8 @@ Docker images are available on [GitHub](https://github.com/mr-karan/nomad-vector
 
 Refer to [config.sample.toml](./config.sample.toml) for a list of configurable values.
 
+Set `app.file_max_line_bytes` to render Vector's `max_line_bytes` option on each generated `file` source. Leave it unset or `0` to use Vector's default.
+
 ### Environment Variables
 
 All config variables can also be populated as env variables by prefixing `NOMAD_VECTOR_LOGGER_` and replacing `.` with `__`.

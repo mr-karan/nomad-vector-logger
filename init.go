@@ -85,5 +85,6 @@ func initOpts(ko *koanf.Koanf) Opts {
 		nomadDataDir:        ko.MustString("app.nomad_data_dir"),
 		vectorConfigDir:     ko.MustString("app.vector_config_dir"),
 		extraTemplatesDir:   ko.String("app.extra_templates_dir"),
+		fileMaxLineBytes:    ko.Int("app.file_max_line_bytes"),
 	}
 }

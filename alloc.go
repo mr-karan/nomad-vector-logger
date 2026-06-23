@@ -102,19 +102,20 @@ func (app *App) generateConfig(allocs map[string]*api.Allocation) error {
 
 			// Add task to the data.
 			data = append(data, AllocMeta{
-				Key:       fmt.Sprintf("nomad_alloc_%s_%s", alloc.ID, task),
-				ID:        alloc.ID,
-				LogDir:    filepath.Join(fmt.Sprintf("%s/%s", app.opts.nomadDataDir, alloc.ID), "alloc/logs/"+task+"*"),
-				Namespace: alloc.Namespace,
-				Group:     alloc.TaskGroup,
-				Node:      alloc.NodeName,
-				Task:      task,
-				Job:       alloc.JobID,
-				JobType:   ptrToString(alloc.Job.Type),
-				ParentJob: ptrToString(alloc.Job.ParentID),
-				TaskMeta:  taskMeta,
-				GroupMeta: groupMeta,
-				JobMeta:   jobMeta,
+				Key:              fmt.Sprintf("nomad_alloc_%s_%s", alloc.ID, task),
+				ID:               alloc.ID,
+				LogDir:           filepath.Join(fmt.Sprintf("%s/%s", app.opts.nomadDataDir, alloc.ID), "alloc/logs/"+task+"*"),
+				Namespace:        alloc.Namespace,
+				Group:            alloc.TaskGroup,
+				Node:             alloc.NodeName,
+				Task:             task,
+				Job:              alloc.JobID,
+				JobType:          ptrToString(alloc.Job.Type),
+				ParentJob:        ptrToString(alloc.Job.ParentID),
+				TaskMeta:         taskMeta,
+				GroupMeta:        groupMeta,
+				JobMeta:          jobMeta,
+				FileMaxLineBytes: app.opts.fileMaxLineBytes,
 			})
 		}
 	}
